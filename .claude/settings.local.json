@@ -42,7 +42,8 @@
       "Bash(grep -rn cors.*origin '/c/Users/hp/Desktop/New folder/New folder/src/')",
       "Bash(grep -rn \"interface.*Request\\\\|req\\\\.user\\\\.\" '/c/Users/hp/Desktop/New folder/New folder/src/' --include=*.ts)",
       "Bash(ssh-keygen -t ed25519 -C \"malikikowero@gmail.com\" -f ~/.ssh/id_ed25519 -N \"\")",
-      "Bash(ssh -T git@github.com)"
+      "Bash(ssh -T git@github.com)",
+      "Bash(powershell.exe -Command \":*)"
     ]
   }
 }

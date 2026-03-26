@@ -1,0 +1,74 @@
+version: '3.9'
+
+services:
+  # ── PostgreSQL Database ──────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: pos_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-posuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-posdb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-posuser} -d ${DB_NAME:-posdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API ──────────────────────────────────────────────
+  backend:
+    # In CI/CD: image is pulled from Docker Hub
+    # For local dev: comment out 'image' and uncomment 'build'
+    image: ${DOCKER_USERNAME:-yourname}/pos-backend:latest
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    container_name: pos_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${DB_USER:-posuser}:${DB_PASSWORD}@db:5432/${DB_NAME:-posdb}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRY: ${JWT_EXPIRY:-7d}
+      PLATFORM_MASTER_KEY: ${PLATFORM_MASTER_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CORS_ORIGIN: ${FRONTEND_URL:-http://localhost:3001}
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Frontend ─────────────────────────────────────────────────
+  frontend:
+    # In CI/CD: image is pulled from Docker Hub
+    # For local dev: comment out 'image' and uncomment 'build'
+    image: ${DOCKER_USERNAME:-yourname}/pos-frontend:latest
+    # build:
+    #   context: ./frontend
+    #   dockerfile: frontend/Dockerfile
+    #   args:
+    #     NEXT_PUBLIC_API_URL: ${BACKEND_URL:-http://localhost:3000}
+    container_name: pos_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3001:3000"
+
+volumes:
+  postgres_data:
