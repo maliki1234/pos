@@ -160,7 +160,7 @@ export const setProductPrice = async (req: Request, res: Response, next: NextFun
     if (!product) return next(new NotFoundError('Product'));
 
     const price = await priceService.createPrice(
-      req.params.id,
+      product.id,
       value.customerType as CustomerType,
       value.unitPrice,
       value.costPrice,

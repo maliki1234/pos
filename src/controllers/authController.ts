@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import bcryptjs from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { type SignOptions } from 'jsonwebtoken';
 import Joi from 'joi';
 import config from '../config/index.js';
 import { ValidationError, ConflictError } from '../utils/errors.js';
@@ -32,7 +32,11 @@ const loginSchema = Joi.object({
 });
 
 const makeToken = (userId: string, businessId: string, email: string, role: string) =>
-  jwt.sign({ userId, businessId, email, role }, config.jwt.secret, { expiresIn: config.jwt.expiry });
+  jwt.sign(
+    { userId, businessId, email, role },
+    config.jwt.secret,
+    { expiresIn: config.jwt.expiry as SignOptions['expiresIn'] }
+  );
 
 /** POST /auth/register-business — creates a new tenant + first ADMIN user */
 export const registerBusiness = async (req: Request, res: Response, next: NextFunction) => {
