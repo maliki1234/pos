@@ -19,7 +19,7 @@ const createTransactionSchema = Joi.object({
     .min(1)
     .required(),
   paymentMethod: Joi.string()
-    .valid('CASH', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CREDIT')
+    .valid('CASH', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'MOBILE_MONEY', 'AZAMPAY', 'CREDIT')
     .required(),
   payments: Joi.array().items(Joi.object({ method: Joi.string().required(), amount: Joi.number().positive().required() })).optional(),
   mpesaRef: Joi.string().optional().allow('', null),

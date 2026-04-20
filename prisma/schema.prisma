@@ -293,6 +293,7 @@ enum PaymentMethod {
   CHEQUE
   BANK_TRANSFER
   MOBILE_MONEY
+  AZAMPAY
   CREDIT
 }
 

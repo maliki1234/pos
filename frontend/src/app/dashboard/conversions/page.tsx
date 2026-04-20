@@ -6,8 +6,7 @@ import { useCurrencyStore } from "@/stores/useCurrencyStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeftRight, Plus, X, History, Calculator, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { ArrowLeftRight, Plus, X, History, Calculator, Minus } from "lucide-react";
 import { toast } from "react-toastify";
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
@@ -78,10 +77,7 @@ export default function ConversionsPage() {
   // Derived lists
   const parentProducts = products.filter(p => p.unitLevel === "CARTON" || p.unitLevel === "BLOCK");
   const childrenOf = (parentId: number) => products.filter(p => p.parentId === parentId);
-  const blockProducts = products.filter(p => p.unitLevel === "BLOCK");
-
   // Computed: quantity out preview
-  const fromProduct = products.find(p => p.id === Number(convertForm.fromProductId));
   const toProduct   = products.find(p => p.id === Number(convertForm.toProductId));
   const quantityOut = convertForm.quantityIn && toProduct?.conversionRate
     ? Number(convertForm.quantityIn) * toProduct.conversionRate

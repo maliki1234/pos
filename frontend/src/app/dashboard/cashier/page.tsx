@@ -72,7 +72,7 @@ export default function CashierPage() {
   const [mpesaManualRef, setMpesaManualRef] = useState(""); // for offline / fallback
   const [useManualRef, setUseManualRef] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [mpesaCheckoutId, setMpesaCheckoutId] = useState("");
+  const [, setMpesaCheckoutId] = useState("");
   const [mpesaCountdown, setMpesaCountdown] = useState(0);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 

@@ -15,11 +15,13 @@ export interface PaymentSplit {
   amount: number;
 }
 
+type PaymentMethod = "CASH" | "CARD" | "MOBILE_MONEY" | "AZAMPAY" | "CHEQUE" | "BANK_TRANSFER" | "CREDIT";
+
 interface CartState {
   items: CartItem[];
   customerId?: string;
   storeId?: string;
-  paymentMethod: "CASH" | "CARD" | "MOBILE_MONEY" | "CHEQUE" | "BANK_TRANSFER" | "CREDIT";
+  paymentMethod: PaymentMethod;
   pricingType: "RETAIL" | "WHOLESALE";
   dueDate?: string;
   loyaltyPointsToRedeem: number;
@@ -39,7 +41,7 @@ interface CartState {
   updateItem: (productId: number, quantity: number) => void;
   setCustomer: (customerId: string) => void;
   setStore: (storeId: string) => void;
-  setPaymentMethod: (method: "CASH" | "CARD" | "MOBILE_MONEY" | "CHEQUE" | "BANK_TRANSFER" | "CREDIT") => void;
+  setPaymentMethod: (method: PaymentMethod) => void;
   setDueDate: (date: string) => void;
   setLoyaltyRedemption: (points: number, kesValue: number) => void;
   setPricingType: (type: "RETAIL" | "WHOLESALE") => void;

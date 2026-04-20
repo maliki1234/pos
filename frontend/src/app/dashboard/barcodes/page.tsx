@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useProductsStore } from "@/stores/useProductsStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useCurrencyStore } from "@/stores/useCurrencyStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarcodeLabel } from "@/components/BarcodeLabel";
 import { Printer, RefreshCw, Plus, Search, Check } from "lucide-react";
@@ -28,8 +28,6 @@ export default function BarcodesPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [generating, setGenerating] = useState<Set<number>>(new Set());
   const [copies, setCopies] = useState(1);
-  const printRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => { loadProducts(); }, []);
 
   const fmt = (n: number) =>
