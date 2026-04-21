@@ -308,29 +308,29 @@ export default function CashierPage() {
   const azampayEnabled = settings?.azampayEnabled ?? false;
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-0 -m-8 overflow-hidden rounded-xl border shadow-sm">
+    <div className="flex min-h-[calc(100vh-7rem)] flex-col gap-3 -m-3 sm:-m-4 lg:-m-8 lg:h-[calc(100vh-8rem)] lg:flex-row lg:gap-0 lg:overflow-hidden lg:rounded-xl lg:border lg:shadow-sm">
 
       {/* ══ LEFT: Products ══ */}
-      <div className="flex flex-col flex-1 min-w-0 bg-background">
-        <div className="flex items-center gap-3 px-5 py-4 border-b bg-card shrink-0">
+      <div className="flex min-h-[30rem] flex-1 flex-col rounded-xl border bg-background lg:min-h-0 lg:rounded-none lg:border-0">
+        <div className="flex flex-col gap-3 border-b bg-card px-3 py-3 shrink-0 sm:flex-row sm:flex-wrap sm:items-center sm:px-5 sm:py-4">
           {hasMultipleStores && (
             <select onChange={e => setStore(e.target.value)} defaultValue=""
-              className="border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary">
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary sm:w-auto">
               <option value="">All Stores</option>
               {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           )}
-          <div className="flex items-center rounded-lg border p-0.5 bg-muted text-sm font-medium shrink-0">
+          <div className="flex w-full items-center rounded-lg border bg-muted p-0.5 text-sm font-medium sm:w-auto sm:shrink-0">
             <button onClick={() => setPricingType("RETAIL")}
-              className={`px-3 py-1.5 rounded-md transition-colors ${pricingType === "RETAIL" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              className={`flex-1 rounded-md px-3 py-1.5 transition-colors sm:flex-none ${pricingType === "RETAIL" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               {t("retail")}
             </button>
             <button onClick={() => setPricingType("WHOLESALE")}
-              className={`px-3 py-1.5 rounded-md transition-colors ${pricingType === "WHOLESALE" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              className={`flex-1 rounded-md px-3 py-1.5 transition-colors sm:flex-none ${pricingType === "WHOLESALE" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               {t("wholesale")}
             </button>
           </div>
-          <div className="relative flex-1 max-w-md">
+          <div className="relative w-full flex-1 sm:min-w-64 sm:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input autoFocus type="text" placeholder={t("search_product")}
               value={query} onChange={e => handleSearch(e.target.value)}
@@ -342,13 +342,13 @@ export default function CashierPage() {
             )}
           </div>
           {!isOnline && (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1.5 rounded-lg shrink-0">
+            <span className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs font-medium text-orange-600 sm:w-auto sm:shrink-0">
               <WifiOff className="h-3.5 w-3.5" /> {t("offline")}
             </span>
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
               <Loader2 className="h-8 w-8 mb-3 animate-spin opacity-50" />
@@ -359,11 +359,11 @@ export default function CashierPage() {
               <p className="text-base font-medium">{query ? t("no_products") : t("search_hint")}</p>
             </div>
           ) : (
-            <div className="rounded-xl border overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="min-w-[620px] w-full text-sm">
                 <thead>
-                  <tr className="bg-muted/60 text-xs text-muted-foreground uppercase tracking-wide">
-                    <th className="text-left px-4 py-2.5 font-medium">{t("product")}</th>
+                  <tr className="bg-muted/60 text-xs uppercase text-muted-foreground">
+                    <th className="text-left px-3 py-2.5 font-medium sm:px-4">{t("product")}</th>
                     <th className="text-right px-4 py-2.5 font-medium">{t("price")}</th>
                     <th className="text-right px-4 py-2.5 font-medium">{t("stock")}</th>
                     <th className="w-10"></th>
@@ -380,7 +380,7 @@ export default function CashierPage() {
                       <tr key={product.id}
                         onClick={() => stock > 0 && handleAddItem(product)}
                         className={`transition-colors ${stock === 0 ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-accent/50"} ${inCart ? "bg-primary/5" : ""}`}>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 sm:px-4">
                           <span className="font-medium">{product.name}</span>
                           {inCart && <span className="ml-2 text-[11px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">×{inCart.quantity} in cart</span>}
                         </td>
@@ -406,7 +406,7 @@ export default function CashierPage() {
       </div>
 
       {/* ══ RIGHT: Cart + Checkout ══ */}
-      <div className="w-[380px] shrink-0 flex flex-col border-l bg-card">
+      <div className="flex min-h-[30rem] w-full flex-col rounded-xl border bg-card lg:min-h-0 lg:w-[380px] lg:shrink-0 lg:rounded-none lg:border-y-0 lg:border-r-0 lg:border-l">
         {/* Cart header */}
         <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
           <div className="flex items-center gap-2">
