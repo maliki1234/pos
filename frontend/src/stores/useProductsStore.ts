@@ -2,6 +2,28 @@ import { create } from "zustand";
 import { db, StoredProduct } from "../lib/db";
 import { useAuthStore } from "./useAuthStore";
 
+async function searchCachedProducts(query: string) {
+  const needle = query.trim().toLowerCase();
+  const cached = await db.products.toArray();
+
+  if (!needle) return cached;
+
+  return cached
+    .filter((product) => {
+      const name = product.name?.toLowerCase() ?? "";
+      const barcode = product.barcode?.toLowerCase() ?? "";
+      return name.includes(needle) || barcode.includes(needle);
+    })
+    .sort((a, b) => {
+      const aName = a.name?.toLowerCase() ?? "";
+      const bName = b.name?.toLowerCase() ?? "";
+      const aStarts = aName.startsWith(needle) ? 0 : 1;
+      const bStarts = bName.startsWith(needle) ? 0 : 1;
+      if (aStarts !== bStarts) return aStarts - bStarts;
+      return aName.localeCompare(bName);
+    });
+}
+
 interface ProductsState {
   products: StoredProduct[];
   isLoading: boolean;
@@ -172,11 +194,9 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         console.warn("API search failed, falling back to local search:", error);
       }
 
-      // Fall back to local search in IndexedDB
-      const results = await db.products
-        .where("name")
-        .startsWithIgnoreCase(query)
-        .toArray();
+      // Fall back to local cache. The products table is not indexed by name, so
+      // filter in memory to keep offline search working on existing installs.
+      const results = await searchCachedProducts(query);
 
       set({ products: results, isLoading: false });
     } catch (error: any) {
