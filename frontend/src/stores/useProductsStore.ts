@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { db, StoredProduct } from "../lib/db";
+import { calculateAvailableQuantity, isOfflineFallbackError } from "@/lib/syncHelpers";
 import { useAuthStore } from "./useAuthStore";
 
 export function transformApiProduct(p: any): StoredProduct {
@@ -26,6 +27,7 @@ export function transformApiProduct(p: any): StoredProduct {
     },
     stock: {
       quantity: totalQuantity,
+      serverQuantity: totalQuantity,
     },
     lastSynced: Date.now(),
   };
@@ -79,23 +81,40 @@ async function getPendingOfflineProducts() {
   return products.filter(Boolean) as StoredProduct[];
 }
 
-async function withLocalStockTotals(products: StoredProduct[]) {
-  const stockItems = await db.stock.toArray();
-  if (stockItems.length === 0) return products;
+async function withQueuedInventoryAdjustments(products: StoredProduct[]) {
+  const queued = await db.syncQueue.toArray();
+  const pendingStockByProduct = new Map<number, number>();
+  const pendingSalesByProduct = new Map<number, number>();
 
-  const stockByProduct = new Map<number, number>();
-  for (const item of stockItems) {
-    if (!item.isActive) continue;
-    const available = Math.max(0, Number(item.quantity) - Number(item.quantityUsed || 0));
-    stockByProduct.set(item.productId, (stockByProduct.get(item.productId) || 0) + available);
+  for (const item of queued) {
+    if (item.type === "STOCK" && item.action === "CREATE") {
+      const productId = Number(item.data?.payload?.productId);
+      const quantity = Number(item.data?.payload?.quantity || 0);
+      if (Number.isFinite(productId)) {
+        pendingStockByProduct.set(productId, (pendingStockByProduct.get(productId) || 0) + quantity);
+      }
+    }
+    if (item.type === "TRANSACTION" && item.action === "CREATE") {
+      for (const line of item.data?.items || []) {
+        const productId = Number(line.productId);
+        const quantity = Number(line.quantity || 0);
+        if (Number.isFinite(productId)) {
+          pendingSalesByProduct.set(productId, (pendingSalesByProduct.get(productId) || 0) + quantity);
+        }
+      }
+    }
   }
 
   return products.map((product) => {
-    const localQuantity = stockByProduct.get(product.id);
-    if (localQuantity === undefined) return product;
+    const baseQuantity = Number(product.stock?.serverQuantity ?? product.stock?.quantity ?? 0);
+    const quantity = calculateAvailableQuantity({
+      baseQuantity,
+      pendingStockQuantity: pendingStockByProduct.get(product.id) || 0,
+      pendingTransactionQuantity: pendingSalesByProduct.get(product.id) || 0,
+    });
     return {
       ...product,
-      stock: { quantity: localQuantity },
+      stock: { ...product.stock, quantity, serverQuantity: product.stock?.serverQuantity ?? baseQuantity },
     };
   });
 }
@@ -167,7 +186,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
         const pendingOfflineProducts = await getPendingOfflineProducts();
         const transformedProducts = products.map(transformApiProduct);
-        const mergedProducts = await withLocalStockTotals([...transformedProducts, ...pendingOfflineProducts]);
+        const mergedProducts = await withQueuedInventoryAdjustments([...transformedProducts, ...pendingOfflineProducts]);
 
         // Sync IndexedDB without losing locally created products that are still queued.
         await db.products.clear();
@@ -225,7 +244,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
           const data = await response.json();
           const products = data.data;
 
-          const transformedProducts = await withLocalStockTotals(products.map(transformApiProduct));
+          const transformedProducts = await withQueuedInventoryAdjustments(products.map(transformApiProduct));
 
           if (transformedProducts.length > 0) {
             await Promise.all(
@@ -294,7 +313,8 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create product");
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to create product");
       }
 
       const result = await response.json();
@@ -316,7 +336,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
           unitPrice: data.wholesalePrice,
           discount: 0,
         },
-        stock: { quantity: 0 },
+        stock: { quantity: 0, serverQuantity: 0 },
         lastSynced: Date.now(),
       };
 
@@ -326,6 +346,10 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       await get().loadProducts();
       set({ isLoading: false });
     } catch (error: any) {
+      if (!isOfflineFallbackError(error)) {
+        set({ isLoading: false, error: error.message });
+        throw error;
+      }
       // Fallback: save to IndexedDB with offline ID
       const localProductId = Date.now();
       const payload = buildProductPayload(data);
@@ -344,6 +368,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
           unitPrice: data.wholesalePrice,
           discount: 0,
         },
+        stock: { quantity: 0, serverQuantity: 0 },
         lastSynced: Date.now(),
       };
 
@@ -374,7 +399,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
         const pendingOfflineProducts = await getPendingOfflineProducts();
         const transformedProducts = products.map(transformApiProduct);
-        const mergedProducts = await withLocalStockTotals([...transformedProducts, ...pendingOfflineProducts]);
+        const mergedProducts = await withQueuedInventoryAdjustments([...transformedProducts, ...pendingOfflineProducts]);
 
         await Promise.all(
           mergedProducts.map((p: any) => db.products.put(p))

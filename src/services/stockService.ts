@@ -6,6 +6,14 @@ import { prisma } from '../utils/prisma.js';
 type TxClient = Prisma.TransactionClient;
 
 export class StockService {
+  async getAllStockBatches(businessId: string) {
+    return prisma.stockBatch.findMany({
+      where: { isActive: true, product: { businessId } },
+      include: { product: true },
+      orderBy: [{ productId: 'asc' }, { receivedDate: 'asc' }],
+    });
+  }
+
   async getStockBatches(businessId: string, productId: number) {
     const batches = await prisma.stockBatch.findMany({
       where: { productId, isActive: true, product: { businessId } },

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { db, StoredTransaction } from "../lib/db";
+import { useStockStore } from "./useStockStore";
 
 export interface CartItem {
   productId: number;
@@ -251,6 +252,18 @@ export const useCartStore = create<CartState>()(
           throw new Error("Credit transactions require a customer to be selected");
         }
 
+        const requestedByProduct = new Map<number, number>();
+        for (const item of items) {
+          requestedByProduct.set(item.productId, (requestedByProduct.get(item.productId) || 0) + Number(item.quantity || 0));
+        }
+        for (const [productId, requestedQty] of requestedByProduct) {
+          const product = await db.products.get(productId);
+          const availableQty = Number(product?.stock?.quantity ?? 0);
+          if (requestedQty > availableQty) {
+            throw new Error(`${product?.name || `Product #${productId}`} has insufficient offline stock. Available: ${availableQty}, Requested: ${requestedQty}`);
+          }
+        }
+
         const transaction: StoredTransaction = {
           id: offlineId,
           transactionNo: offlineId,
@@ -281,6 +294,12 @@ export const useCartStore = create<CartState>()(
           createdAt: Date.now(),
           attempts: 0,
         });
+
+        await Promise.all(
+          Array.from(requestedByProduct.keys()).map((productId) =>
+            useStockStore.getState().updateProductStockSummary(productId)
+          )
+        );
 
         // Clear cart after submission
         get().clearCart();

@@ -213,6 +213,12 @@ export default function CashierPage() {
   };
 
   const handleAddItem = (product: any) => {
+    const existingQty = items.find((i) => i.productId === product.id)?.quantity || 0;
+    const stock = Number(product.stock?.quantity ?? 0);
+    if (existingQty + 1 > stock) {
+      toast.error(`${product.name} has only ${stock} in stock`);
+      return;
+    }
     const price = pricingType === "WHOLESALE"
       ? product.wholesale?.unitPrice || product.retail?.unitPrice || 0
       : product.retail?.unitPrice || 0;
@@ -221,7 +227,15 @@ export default function CashierPage() {
 
   const handleUpdateQuantity = (productId: number, qty: number) => {
     if (qty <= 0) removeItem(productId);
-    else updateItem(productId, qty);
+    else {
+      const product = products.find((p: any) => p.id === productId);
+      const stock = Number(product?.stock?.quantity ?? 0);
+      if (qty > stock) {
+        toast.error(`${product?.name || "Product"} has only ${stock} in stock`);
+        return;
+      }
+      updateItem(productId, qty);
+    }
   };
 
   // ── M-Pesa STK Push ──────────────────────────────────────────────────────────
@@ -414,20 +428,21 @@ export default function CashierPage() {
                       : product.retail?.unitPrice || 0;
                     const stock = product.stock?.quantity ?? 0;
                     const inCart = items.find(i => i.productId === product.id);
+                    const availableForCart = Math.max(0, Number(stock) - Number(inCart?.quantity || 0));
                     return (
                       <tr key={product.id}
-                        onClick={() => stock > 0 && handleAddItem(product)}
-                        className={`transition-colors ${stock === 0 ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-accent/50"} ${inCart ? "bg-primary/5" : ""}`}>
+                        onClick={() => availableForCart > 0 && handleAddItem(product)}
+                        className={`transition-colors ${availableForCart === 0 ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-accent/50"} ${inCart ? "bg-primary/5" : ""}`}>
                         <td className="px-3 py-3 sm:px-4">
                           <span className="font-medium">{product.name}</span>
                           {inCart && <span className="ml-2 text-[11px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">×{inCart.quantity} in cart</span>}
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-primary tabular-nums">{fmt(price)}</td>
-                        <td className={`px-4 py-3 text-right tabular-nums text-xs font-medium ${stock === 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                          {stock === 0 ? t("out_of_stock") : stock}
+                        <td className={`px-4 py-3 text-right tabular-nums text-xs font-medium ${availableForCart === 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                          {availableForCart === 0 ? t("out_of_stock") : availableForCart}
                         </td>
                         <td className="px-3 py-3 text-right">
-                          {stock > 0 && (
+                          {availableForCart > 0 && (
                             <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors">
                               <Plus className="h-3.5 w-3.5" />
                             </span>

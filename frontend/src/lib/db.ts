@@ -25,6 +25,7 @@ export interface StoredProduct {
   };
   stock?: {
     quantity: number;
+    serverQuantity?: number;
   };
   lastSynced: number;
 }
@@ -100,7 +101,7 @@ export interface StoredCreditLedger {
 
 export interface SyncQueue {
   id: string;
-  type: "TRANSACTION" | "PRODUCT" | "STOCK" | "CUSTOMER";
+  type: "TRANSACTION" | "PRODUCT" | "STOCK" | "CUSTOMER" | "CATEGORY";
   action: "CREATE" | "UPDATE" | "DELETE";
   data: any;
   createdAt: number;

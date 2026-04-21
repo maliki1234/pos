@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { db } from "../lib/db";
+import { sortSyncQueueItems } from "@/lib/syncHelpers";
 import { useAuthStore } from "./useAuthStore";
 import { useCategoriesStore } from "./useCategoriesStore";
 import { transformApiProduct, useProductsStore } from "./useProductsStore";
@@ -124,11 +125,12 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     set({ isPreloading: true, error: undefined });
     try {
       await Promise.allSettled([
-        useProductsStore.getState().loadProducts(),
         useCategoriesStore.getState().loadCategories(),
         useSettingsStore.getState().fetchSettings(),
         useStoreStore.getState().fetchStores(),
       ]);
+      await useProductsStore.getState().loadProducts();
+      await useStockStore.getState().syncStock();
 
       const timestamp = Date.now();
       await db.offlineMeta.put({
@@ -146,9 +148,8 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   getPendingCount: async () => {
     try {
       const queued = await db.syncQueue.toArray();
-      const pending = queued.filter((q) => q.attempts < 3);
-      set({ pendingCount: pending.length });
-      return pending.length;
+      set({ pendingCount: queued.length });
+      return queued.length;
     } catch (error) {
       console.error("Error getting pending count:", error);
       return 0;
@@ -163,11 +164,18 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     set({ isSyncing: true, error: undefined });
 
     try {
-      const queuedItems = await db.syncQueue.where("attempts").below(3).toArray();
+      const queuedItems = sortSyncQueueItems(await db.syncQueue.toArray());
 
-      for (const item of queuedItems) {
+      for (const queuedItem of queuedItems) {
+        const item = await db.syncQueue.get(queuedItem.id);
+        if (!item) continue;
         try {
           const authToken = useAuthStore.getState().token;
+          if (!authToken) {
+            useAuthStore.setState({ showReauthBanner: true });
+            set({ isSyncing: false, error: "Log in again to sync offline changes." });
+            return;
+          }
 
           // Strip offline-only fields before sending to API
           const payload = item.type === "TRANSACTION" ? {
@@ -184,16 +192,20 @@ export const useSyncStore = create<SyncState>((set, get) => ({
             dueDate:               item.data.dueDate,
             loyaltyPointsToRedeem: item.data.loyaltyPointsToRedeem,
             notes:                 item.data.notes,
-          } : (item.type === "PRODUCT" || item.type === "STOCK") && item.data?.payload ? item.data.payload : item.data;
+          } : (item.type === "PRODUCT" || item.type === "STOCK" || item.type === "CATEGORY") && item.data?.payload ? item.data.payload : item.data;
 
           const endpoint = item.type === "STOCK"
             ? "stock/batch"
-            : `${item.type.toLowerCase()}s`;
+            : item.type === "CATEGORY"
+              ? "categories"
+              : `${item.type.toLowerCase()}s`;
+
+          const method = item.action === "CREATE" ? "POST" : item.action === "UPDATE" ? "PATCH" : "DELETE";
 
           const response = await fetch(
             `${process.env.NEXT_PUBLIC_API_URL}/${endpoint}`,
             {
-              method: "POST",
+              method,
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${authToken}`,
@@ -203,15 +215,54 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           );
 
           if (response.ok) {
+            const synced = await response.json().catch(() => null);
+            if (item.type === "CATEGORY") {
+              if (item.data?.localCategoryId) {
+                await db.categories.delete(item.data.localCategoryId);
+              }
+              if (synced?.data) {
+                await db.categories.put({
+                  id: synced.data.id,
+                  name: synced.data.name,
+                  description: synced.data.description || "",
+                  isActive: synced.data.isActive ?? true,
+                  lastSynced: Date.now(),
+                });
+                const localCategoryId = item.data?.localCategoryId;
+                const serverCategoryId = synced.data.id;
+                if (localCategoryId && serverCategoryId) {
+                  const queued = await db.syncQueue.toArray();
+                  await Promise.all(queued.map(async (queuedItem) => {
+                    if (queuedItem.id === item.id) return;
+                    if (queuedItem.type === "PRODUCT" && queuedItem.data?.payload?.categoryId === localCategoryId) {
+                      await db.syncQueue.update(queuedItem.id, {
+                        attempts: 0,
+                        data: {
+                          ...queuedItem.data,
+                          payload: { ...queuedItem.data.payload, categoryId: serverCategoryId },
+                        },
+                      });
+                    }
+                  }));
+
+                  const products = await db.products.toArray();
+                  await Promise.all(products.map(async (product) => {
+                    if (product.categoryId === localCategoryId) {
+                      await db.products.update(product.id, { categoryId: serverCategoryId });
+                    }
+                  }));
+                }
+              }
+            }
             // Update transaction status
             if (item.type === "TRANSACTION" && item.data.offlineId) {
               await db.transactions.update(item.data.offlineId, {
                 syncStatus: "SYNCED",
                 syncedAt: Date.now(),
+                transactionNo: synced?.data?.transactionNo ?? item.data.transactionNo,
               });
             }
             if (item.type === "PRODUCT") {
-              const synced = await response.json().catch(() => null);
               if (item.data?.localProductId) {
                 await db.products.delete(item.data.localProductId);
               }
@@ -225,6 +276,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
                     if (queuedItem.id === item.id) return;
                     if (queuedItem.type === "STOCK" && queuedItem.data?.payload?.productId === localProductId) {
                       await db.syncQueue.update(queuedItem.id, {
+                        attempts: 0,
                         data: {
                           ...queuedItem.data,
                           payload: { ...queuedItem.data.payload, productId: serverProductId },
@@ -237,16 +289,25 @@ export const useSyncStore = create<SyncState>((set, get) => ({
                       );
                       if (updatedItems) {
                         await db.syncQueue.update(queuedItem.id, {
+                          attempts: 0,
                           data: { ...queuedItem.data, items: updatedItems },
                         });
                       }
+                    }
+                  }));
+                  const localTransactions = await db.transactions.toArray();
+                  await Promise.all(localTransactions.map(async (txn) => {
+                    const updatedItems = txn.items?.map((line: any) =>
+                      line.productId === localProductId ? { ...line, productId: serverProductId } : line
+                    );
+                    if (updatedItems?.some((line: any, index: number) => line.productId !== txn.items[index].productId)) {
+                      await db.transactions.update(txn.id, { items: updatedItems });
                     }
                   }));
                 }
               }
             }
             if (item.type === "STOCK") {
-              const synced = await response.json().catch(() => null);
               if (item.data?.localStockId) {
                 await db.stock.delete(item.data.localStockId);
               }
@@ -273,10 +334,16 @@ export const useSyncStore = create<SyncState>((set, get) => ({
             await db.syncQueue.delete(item.id);
             console.log(`Synced ${item.type}: ${item.id}`);
           } else {
+            const errorData = await response.json().catch(() => null);
+            if (response.status === 401) {
+              useAuthStore.setState({ showReauthBanner: true });
+              set({ isSyncing: false, error: "Log in again to sync offline changes." });
+              return;
+            }
             // Increment attempts
             await db.syncQueue.update(item.id, {
               attempts: item.attempts + 1,
-              lastError: `HTTP ${response.status}`,
+              lastError: errorData?.message || `HTTP ${response.status}`,
             });
           }
         } catch (error: any) {
@@ -308,22 +375,15 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
   clearOldSyncData: async () => {
     try {
-      // Clear sync queue items older than 7 days that are synced
-      const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const items = await db.syncQueue.where("createdAt").below(weekAgo).toArray();
-
-      await Promise.all(
-        items.map((item) => {
-          if (item.attempts >= 3 || item.attempts === 0) {
-            return db.syncQueue.delete(item.id);
-          }
-          return Promise.resolve();
-        })
-      );
-
-      // Clear old transactions (older than 30 days)
+      // Never purge syncQueue here: every row represents unsynced user data.
+      // Clear old synced transactions only after they are safely on the server.
       const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-      await db.transactions.where("createdAt").below(thirtyDaysAgo).delete();
+      const oldTransactions = await db.transactions.where("createdAt").below(thirtyDaysAgo).toArray();
+      await Promise.all(
+        oldTransactions
+          .filter((transaction) => transaction.syncStatus === "SYNCED")
+          .map((transaction) => db.transactions.delete(transaction.id))
+      );
     } catch (error) {
       console.error("Error clearing old sync data:", error);
     }

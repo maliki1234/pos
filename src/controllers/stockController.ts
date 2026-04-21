@@ -24,7 +24,11 @@ export const getStockBatches = async (req: Request, res: Response, next: NextFun
     const { productId } = req.query;
 
     if (!productId) {
-      return next(new ValidationError('productId query parameter is required'));
+      const batches = await stockService.getAllStockBatches(req.user!.businessId);
+      return res.json({
+        success: true,
+        data: batches,
+      });
     }
 
     const batches = await stockService.getStockBatches(req.user!.businessId, Number(productId));

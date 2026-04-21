@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { db, StoredStock } from "../lib/db";
+import { calculateAvailableQuantity, isOfflineFallbackError } from "@/lib/syncHelpers";
 import { useAuthStore } from "./useAuthStore";
 import { useProductsStore } from "./useProductsStore";
 
@@ -52,16 +53,32 @@ export const useStockStore = create<StockState>((set, get) => ({
   // product.stock.quantity, not directly from the stock batch table.
   updateProductStockSummary: async (productId: number) => {
     const stockItems = await db.stock.where("productId").equals(productId).toArray();
-    const totalQuantity = stockItems.reduce((sum, item) => {
+    const stockTableQuantity = stockItems.reduce((sum, item) => {
       if (!item.isActive) return sum;
       return sum + Math.max(0, Number(item.quantity) - Number(item.quantityUsed || 0));
     }, 0);
     const product = await db.products.get(productId);
     if (product) {
-      await db.products.put({ ...product, stock: { quantity: totalQuantity } });
+      const queuedTransactions = await db.syncQueue.where("type").equals("TRANSACTION").toArray();
+      const pendingTransactionQuantity = queuedTransactions.reduce((sum, item) => {
+        const quantity = (item.data?.items || []).reduce((lineSum: number, line: any) => {
+          return Number(line.productId) === productId ? lineSum + Number(line.quantity || 0) : lineSum;
+        }, 0);
+        return sum + quantity;
+      }, 0);
+      const fallbackQuantity = Number(product.stock?.serverQuantity ?? product.stock?.quantity ?? 0);
+      const baseQuantity = stockItems.length > 0 ? stockTableQuantity : fallbackQuantity;
+      const totalQuantity = calculateAvailableQuantity({ baseQuantity, pendingTransactionQuantity });
+      const stock = {
+        ...product.stock,
+        quantity: totalQuantity,
+        serverQuantity: product.stock?.serverQuantity ?? baseQuantity,
+      };
+
+      await db.products.put({ ...product, stock });
       useProductsStore.setState((state) => ({
         products: state.products.map((p) =>
-          p.id === productId ? { ...p, stock: { quantity: totalQuantity } } : p
+          p.id === productId ? { ...p, stock } : p
         ),
       }));
     }
@@ -196,7 +213,8 @@ export const useStockStore = create<StockState>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to add stock");
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to add stock");
       }
 
       const result = await response.json();
@@ -223,6 +241,10 @@ export const useStockStore = create<StockState>((set, get) => ({
       await get().loadStockByProduct(data.productId);
       set({ isLoading: false });
     } catch (error: any) {
+      if (!isOfflineFallbackError(error)) {
+        set({ isLoading: false, error: error.message });
+        throw error;
+      }
       // Fallback: save offline
       const offlineId = `offline_${Date.now()}_${Math.random()}`;
       const offlineStock: StoredStock = {
@@ -393,10 +415,21 @@ export const useStockStore = create<StockState>((set, get) => ({
           lastSynced: Date.now(),
         }));
 
-        await Promise.all(transformedStock.map((item: any) => db.stock.put(item)));
-        const productIds = [...new Set<number>(transformedStock.map((item: any) => Number(item.productId)))];
+        const pendingStockCreates = await db.syncQueue.where("type").equals("STOCK").toArray();
+        const pendingLocalStockIds = new Set(
+          pendingStockCreates
+            .map((item) => item.data?.localStockId)
+            .filter((id): id is string => typeof id === "string")
+        );
+        const localPendingStock = (await db.stock.toArray()).filter((item) => pendingLocalStockIds.has(item.id));
+
+        await db.stock.clear();
+        await Promise.all([...transformedStock, ...localPendingStock].map((item: any) => db.stock.put(item)));
+        const productIds = [...new Set<number>(
+          [...transformedStock, ...localPendingStock].map((item: any) => Number(item.productId))
+        )];
         await Promise.all(productIds.map((productId) => get().updateProductStockSummary(productId)));
-        set({ stock: transformedStock });
+        set({ stock: [...transformedStock, ...localPendingStock] });
       }
     } catch (error) {
       console.error("Error syncing stock:", error);

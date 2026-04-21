@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { db, StoredCategory } from "../lib/db";
+import { isOfflineFallbackError } from "@/lib/syncHelpers";
 import { useAuthStore } from "./useAuthStore";
 
 interface CategoriesState {
@@ -13,6 +14,17 @@ interface CategoriesState {
   updateCategory: (id: string, data: { name: string; description?: string }) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   syncCategories: () => Promise<void>;
+}
+
+async function getPendingOfflineCategories() {
+  const pendingCreates = await db.syncQueue.where("type").equals("CATEGORY").toArray();
+  const localIds = pendingCreates
+    .map((item) => item.data?.localCategoryId)
+    .filter((id): id is string => typeof id === "string");
+
+  if (localIds.length === 0) return [];
+  const categories = await Promise.all(localIds.map((id) => db.categories.get(id)));
+  return categories.filter(Boolean) as StoredCategory[];
 }
 
 export const useCategoriesStore = create<CategoriesState>((set, get) => ({
@@ -45,12 +57,13 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
           lastSynced: Date.now(),
         }));
 
-        await Promise.all(
-          transformedCategories.map((ct: any) => db.categories.put(ct))
-        );
+        const pendingOfflineCategories = await getPendingOfflineCategories();
+        const mergedCategories = [...transformedCategories, ...pendingOfflineCategories];
+
+        await Promise.all(mergedCategories.map((ct: any) => db.categories.put(ct)));
 
         set({
-          categories: transformedCategories,
+          categories: mergedCategories,
           isLoading: false,
         });
       } else {
@@ -93,7 +106,8 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create category");
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to create category");
       }
 
       const result = await response.json();
@@ -111,6 +125,10 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       await get().loadCategories();
       set({ isLoading: false });
     } catch (error: any) {
+      if (!isOfflineFallbackError(error)) {
+        set({ error: error.message, isLoading: false });
+        throw error;
+      }
       // Fallback: save offline
       const offlineId = `offline_${Date.now()}_${Math.random()}`;
       const offlineCategory: StoredCategory = {
@@ -122,6 +140,21 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       };
 
       await db.categories.put(offlineCategory);
+      await db.syncQueue.put({
+        id: `sync_category_${offlineId}`,
+        type: "CATEGORY",
+        action: "CREATE",
+        data: {
+          localCategoryId: offlineId,
+          payload: {
+            name: data.name,
+            description: data.description || "",
+            isActive: true,
+          },
+        },
+        createdAt: Date.now(),
+        attempts: 0,
+      });
       await get().loadCategories();
       set({ isLoading: false, error: "Category saved offline - will sync when online" });
     }
