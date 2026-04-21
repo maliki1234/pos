@@ -25,6 +25,13 @@ A clean, scalable Point of Sale (POS) system built with Node.js, Prisma, and Pos
 - **Validation**: Joi
 - **Logging**: Morgan + Custom logger
 
+## Project Docs
+
+- `SETUP.md` - local setup and configuration
+- `DEPLOYMENT.md` - Render deployment settings and production URLs
+- `ARCHITECTURE.md` - system structure and design notes
+- `TESTING_GUIDE.md` - manual and automated verification guidance
+
 ## Installation
 
 ### Prerequisites
