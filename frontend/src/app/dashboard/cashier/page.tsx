@@ -53,6 +53,9 @@ export default function CashierPage() {
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
+  const [quickCustomer, setQuickCustomer] = useState({ name: "", phone: "", creditLimit: "" });
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   const [pointsInput, setPointsInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -157,6 +160,40 @@ export default function CashierPage() {
     setCreditSummary(null);
     setLoyaltyRedemption(0, 0);
     setPointsInput("");
+  };
+
+  const handleQuickAddCustomer = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = quickCustomer.name.trim();
+    if (!name) {
+      toast.error("Enter customer name");
+      return;
+    }
+
+    setIsCreatingCustomer(true);
+    try {
+      const res = await fetch(`${API}/customers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name,
+          phone: quickCustomer.phone.trim() || null,
+          customerType: pricingType === "WHOLESALE" ? "WHOLESALE" : "RETAIL",
+          creditLimit: quickCustomer.creditLimit ? Number(quickCustomer.creditLimit) : null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to add customer");
+
+      handleSelectCustomer(data.data);
+      setQuickCustomer({ name: "", phone: "", creditLimit: "" });
+      setQuickCustomerOpen(false);
+      toast.success("Customer added to this sale");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add customer");
+    } finally {
+      setIsCreatingCustomer(false);
+    }
   };
 
   const handleApplyPoints = () => {
@@ -727,7 +764,57 @@ export default function CashierPage() {
                 {/* Credit fields */}
                 {paymentMethod === "CREDIT" && (
                   <div className="space-y-2">
-                    {!selectedCustomer && <p className="text-xs text-destructive font-medium">⚠ {t("select_customer_credit")}</p>}
+                    {!selectedCustomer && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-medium">Select a customer before charging credit.</p>
+                          <button
+                            type="button"
+                            onClick={() => setQuickCustomerOpen((open) => !open)}
+                            className="shrink-0 rounded-md bg-primary px-2.5 py-1.5 font-semibold text-primary-foreground hover:bg-primary/90"
+                          >
+                            {quickCustomerOpen ? "Close" : "Add customer"}
+                          </button>
+                        </div>
+                        <p className="mt-1 text-amber-700">{t("select_customer_credit")}</p>
+
+                        {quickCustomerOpen && (
+                          <form onSubmit={handleQuickAddCustomer} className="mt-3 space-y-2">
+                            <input
+                              value={quickCustomer.name}
+                              onChange={(e) => setQuickCustomer((prev) => ({ ...prev, name: e.target.value }))}
+                              placeholder="Customer name"
+                              className="h-8 w-full rounded-lg border bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                              disabled={isCreatingCustomer}
+                            />
+                            <input
+                              value={quickCustomer.phone}
+                              onChange={(e) => setQuickCustomer((prev) => ({ ...prev, phone: e.target.value }))}
+                              placeholder="Phone number"
+                              className="h-8 w-full rounded-lg border bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                              disabled={isCreatingCustomer}
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              value={quickCustomer.creditLimit}
+                              onChange={(e) => setQuickCustomer((prev) => ({ ...prev, creditLimit: e.target.value }))}
+                              placeholder="Credit limit optional"
+                              className="h-8 w-full rounded-lg border bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                              disabled={isCreatingCustomer}
+                            />
+                            <button
+                              type="submit"
+                              disabled={isCreatingCustomer}
+                              className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              {isCreatingCustomer && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                              {isCreatingCustomer ? "Adding customer..." : "Save and use customer"}
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    )}
                     {selectedCustomer && creditSummary && creditSummary.totalOutstanding > 0 && (
                       <div className={`rounded-lg px-3 py-2 text-xs border ${creditSummary.overdueCount > 0 ? "bg-red-50 border-red-200 text-red-700" : "bg-amber-50 border-amber-200 text-amber-700"}`}>
                         <span className="font-semibold">{selectedCustomer.name}</span> {t("owes")} <span className="font-semibold">{fmt(creditSummary.totalOutstanding)}</span>
