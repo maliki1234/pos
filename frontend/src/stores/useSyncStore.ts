@@ -6,6 +6,28 @@ import { useProductsStore } from "./useProductsStore";
 import { useSettingsStore } from "./useSettingsStore";
 import { useStoreStore } from "./useStoreStore";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+const HEALTH_URL = API_BASE_URL.replace(/\/api\/v\d+\/?$/, "") + "/health";
+
+async function canReachBackend(timeoutMs = 4000) {
+  if (typeof window !== "undefined" && !navigator.onLine) return false;
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(HEALTH_URL, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 interface SyncState {
   isOnline: boolean;
   isSyncing: boolean;
@@ -17,6 +39,7 @@ interface SyncState {
 
   // Actions
   initializeSync: () => void;
+  checkConnection: () => Promise<boolean>;
   preloadOfflineData: () => Promise<void>;
   syncPendingTransactions: () => Promise<void>;
   getPendingCount: () => Promise<number>;
@@ -35,16 +58,28 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   initializeSync: () => {
     if (typeof window === "undefined") return;
 
-    // Listen for online/offline events
-    window.addEventListener("online", () => {
-      set({ isOnline: true, error: undefined });
-      console.log("Back online - starting sync");
-      // If session was PIN-locked (expired token), prompt re-auth
-      const { isPinLocked, showReauthBanner } = useAuthStore.getState();
-      if (isPinLocked || showReauthBanner) {
-        useAuthStore.setState({ showReauthBanner: true });
+    let isCheckingConnection = false;
+    const refreshConnection = async () => {
+      if (isCheckingConnection) return get().isOnline;
+      isCheckingConnection = true;
+      const wasOnline = get().isOnline;
+      const isReachable = await canReachBackend();
+      isCheckingConnection = false;
+
+      set({ isOnline: isReachable, error: isReachable ? undefined : get().error });
+      if (isReachable && !wasOnline) {
+        console.log("Backend reachable - starting sync");
+        const { isPinLocked, showReauthBanner } = useAuthStore.getState();
+        if (isPinLocked || showReauthBanner) {
+          useAuthStore.setState({ showReauthBanner: true });
+        }
+        get().syncPendingTransactions();
       }
-      get().syncPendingTransactions();
+      return isReachable;
+    };
+
+    window.addEventListener("online", () => {
+      refreshConnection();
     });
 
     window.addEventListener("offline", () => {
@@ -56,12 +91,16 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       get().syncPendingTransactions();
     });
 
-    // Periodic sync check every 30 seconds when online
+    // Periodic connection and sync check every 30 seconds
     setInterval(() => {
-      if (get().isOnline && !get().isSyncing) {
-        get().syncPendingTransactions();
-      }
+      refreshConnection().then((isReachable) => {
+        if (isReachable && !get().isSyncing) {
+          get().syncPendingTransactions();
+        }
+      });
     }, 30000);
+
+    refreshConnection();
 
     // Initial pending count
     get().getPendingCount();
@@ -70,8 +109,16 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     });
   },
 
+  checkConnection: async () => {
+    const isReachable = await canReachBackend();
+    set({ isOnline: isReachable, error: isReachable ? undefined : get().error });
+    return isReachable;
+  },
+
   preloadOfflineData: async () => {
-    if (!get().isOnline || get().isPreloading) return;
+    if (get().isPreloading) return;
+    const isReachable = await get().checkConnection();
+    if (!isReachable) return;
 
     set({ isPreloading: true, error: undefined });
     try {
@@ -108,7 +155,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   },
 
   syncPendingTransactions: async () => {
-    if (!get().isOnline || get().isSyncing) return;
+    if (get().isSyncing) return;
+    const isReachable = await get().checkConnection();
+    if (!isReachable) return;
 
     set({ isSyncing: true, error: undefined });
 
