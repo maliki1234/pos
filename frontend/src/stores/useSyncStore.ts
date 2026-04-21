@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { db } from "../lib/db";
 import { useAuthStore } from "./useAuthStore";
 import { useCategoriesStore } from "./useCategoriesStore";
-import { useProductsStore } from "./useProductsStore";
+import { transformApiProduct, useProductsStore } from "./useProductsStore";
 import { useSettingsStore } from "./useSettingsStore";
 import { useStoreStore } from "./useStoreStore";
 
@@ -183,7 +183,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
             dueDate:               item.data.dueDate,
             loyaltyPointsToRedeem: item.data.loyaltyPointsToRedeem,
             notes:                 item.data.notes,
-          } : item.data;
+          } : item.type === "PRODUCT" && item.data?.payload ? item.data.payload : item.data;
 
           const response = await fetch(
             `${process.env.NEXT_PUBLIC_API_URL}/${item.type.toLowerCase()}s`,
@@ -204,6 +204,15 @@ export const useSyncStore = create<SyncState>((set, get) => ({
                 syncStatus: "SYNCED",
                 syncedAt: Date.now(),
               });
+            }
+            if (item.type === "PRODUCT") {
+              const synced = await response.json().catch(() => null);
+              if (item.data?.localProductId) {
+                await db.products.delete(item.data.localProductId);
+              }
+              if (synced?.data) {
+                await db.products.put(transformApiProduct(synced.data));
+              }
             }
 
             // Remove from queue

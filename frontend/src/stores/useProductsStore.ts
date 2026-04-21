@@ -2,6 +2,83 @@ import { create } from "zustand";
 import { db, StoredProduct } from "../lib/db";
 import { useAuthStore } from "./useAuthStore";
 
+export function transformApiProduct(p: any): StoredProduct {
+  const retailPrice = p.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.unitPrice || 0;
+  const wholesalePrice = p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.unitPrice || retailPrice;
+  const totalQuantity = (p.stock || []).reduce((sum: number, batch: any) => {
+    return sum + (batch.quantity - batch.quantityUsed);
+  }, 0);
+
+  return {
+    id: p.id,
+    name: p.name,
+    categoryId: p.categoryId,
+    barcode: p.barcode,
+    description: p.description,
+    isActive: p.isActive,
+    retail: {
+      unitPrice: retailPrice,
+      discount: p.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.discount || 0,
+    },
+    wholesale: {
+      unitPrice: wholesalePrice,
+      discount: p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.discount || 0,
+    },
+    stock: {
+      quantity: totalQuantity,
+    },
+    lastSynced: Date.now(),
+  };
+}
+
+function buildProductPayload(data: {
+  name: string;
+  categoryId: string;
+  barcode?: string;
+  retailPrice: number;
+  wholesalePrice: number;
+  costPrice: number;
+  reorderPoint?: number;
+}) {
+  return {
+    name: data.name,
+    categoryId: data.categoryId,
+    barcode: data.barcode,
+    description: "",
+    isActive: true,
+    reorderPoint: data.reorderPoint ?? 10,
+    prices: [
+      {
+        customerType: "RETAIL",
+        unitPrice: data.retailPrice,
+        costPrice: data.costPrice,
+        discount: 0,
+      },
+      {
+        customerType: "WHOLESALE",
+        unitPrice: data.wholesalePrice,
+        costPrice: data.costPrice,
+        discount: 0,
+      },
+    ],
+  };
+}
+
+async function getPendingOfflineProducts() {
+  const pendingCreates = await db.syncQueue
+    .where("type")
+    .equals("PRODUCT")
+    .toArray();
+  const localIds = pendingCreates
+    .map((item) => item.data?.localProductId)
+    .filter((id): id is number => typeof id === "number");
+
+  if (localIds.length === 0) return [];
+
+  const products = await Promise.all(localIds.map((id) => db.products.get(id)));
+  return products.filter(Boolean) as StoredProduct[];
+}
+
 async function searchCachedProducts(query: string) {
   const needle = query.trim().toLowerCase();
   const cached = await db.products.toArray();
@@ -67,48 +144,20 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         const data = await response.json();
         const products = data.data;
 
-        // Transform API products to match StoredProduct schema
-        const transformedProducts = products.map((p: any) => {
-          const retailPrice = p.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.unitPrice || 0;
-          const wholesalePrice = p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.unitPrice || retailPrice;
+        const pendingOfflineProducts = await getPendingOfflineProducts();
+        const transformedProducts = products.map(transformApiProduct);
+        const mergedProducts = [...transformedProducts, ...pendingOfflineProducts];
 
-          // Calculate total available quantity from stock batches
-          const totalQuantity = (p.stock || []).reduce((sum: number, batch: any) => {
-            return sum + (batch.quantity - batch.quantityUsed);
-          }, 0);
-
-          return {
-            id: p.id,
-            name: p.name,
-            categoryId: p.categoryId,
-            barcode: p.barcode,
-            description: p.description,
-            isActive: p.isActive,
-            retail: {
-              unitPrice: retailPrice,
-              discount: p.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.discount || 0,
-            },
-            wholesale: {
-              unitPrice: wholesalePrice,
-              discount: p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.discount || 0,
-            },
-            stock: {
-              quantity: totalQuantity,
-            },
-            lastSynced: Date.now(),
-          };
-        });
-
-        // Sync IndexedDB: clear stale records then write fresh ones
+        // Sync IndexedDB without losing locally created products that are still queued.
         await db.products.clear();
-        if (transformedProducts.length > 0) {
+        if (mergedProducts.length > 0) {
           await Promise.all(
-            transformedProducts.map((p: any) => db.products.put(p))
+            mergedProducts.map((p: any) => db.products.put(p))
           );
         }
 
         set({
-          products: transformedProducts,
+          products: mergedProducts,
           lastSynced: Date.now(),
           isLoading: false,
         });
@@ -155,37 +204,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
           const data = await response.json();
           const products = data.data;
 
-          // Transform API products to match StoredProduct schema (same as loadProducts)
-          const transformedProducts = products.map((p: any) => {
-            const retailPrice = p.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.unitPrice || 0;
-            const wholesalePrice = p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.unitPrice || retailPrice;
-
-            // Calculate total available quantity from stock batches
-            const totalQuantity = (p.stock || []).reduce((sum: number, batch: any) => {
-              return sum + (batch.quantity - batch.quantityUsed);
-            }, 0);
-
-            return {
-              id: p.id,
-              name: p.name,
-              categoryId: p.categoryId,
-              barcode: p.barcode,
-              description: p.description,
-              isActive: p.isActive,
-              retail: {
-                unitPrice: retailPrice,
-                discount: p.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.discount || 0,
-              },
-              wholesale: {
-                unitPrice: wholesalePrice,
-                discount: p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.discount || 0,
-              },
-              stock: {
-                quantity: totalQuantity,
-              },
-              lastSynced: Date.now(),
-            };
-          });
+          const transformedProducts = products.map(transformApiProduct);
 
           if (transformedProducts.length > 0) {
             await Promise.all(
@@ -223,23 +242,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
           const data = await response.json();
           const product = data.data;
 
-          const transformedProduct: StoredProduct = {
-            id: product.id,
-            name: product.name,
-            categoryId: product.categoryId,
-            barcode: product.barcode,
-            description: product.description,
-            isActive: product.isActive,
-            retail: {
-              unitPrice: product.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.unitPrice || 0,
-              discount: product.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.discount || 0,
-            },
-            wholesale: {
-              unitPrice: product.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.unitPrice || 0,
-              discount: product.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.discount || 0,
-            },
-            lastSynced: Date.now(),
-          };
+          const transformedProduct = transformApiProduct(product);
 
           await db.products.put(transformedProduct);
           return transformedProduct;
@@ -262,31 +265,11 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       if (token) headers.Authorization = `Bearer ${token}`;
 
       // Create on API first
+      const payload = buildProductPayload(data);
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products`, {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          name: data.name,
-          categoryId: data.categoryId,
-          barcode: data.barcode,
-          description: "",
-          isActive: true,
-          reorderPoint: data.reorderPoint ?? 10,
-          prices: [
-            {
-              customerType: "RETAIL",
-              unitPrice: data.retailPrice,
-              costPrice: data.costPrice,
-              discount: 0,
-            },
-            {
-              customerType: "WHOLESALE",
-              unitPrice: data.wholesalePrice,
-              costPrice: data.costPrice,
-              discount: 0,
-            },
-          ],
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -323,8 +306,10 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       set({ isLoading: false });
     } catch (error: any) {
       // Fallback: save to IndexedDB with offline ID
+      const localProductId = Date.now();
+      const payload = buildProductPayload(data);
       const offlineProduct: StoredProduct = {
-        id: Date.now(),
+        id: localProductId,
         name: data.name,
         categoryId: data.categoryId,
         barcode: data.barcode,
@@ -342,6 +327,14 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       };
 
       await db.products.put(offlineProduct);
+      await db.syncQueue.put({
+        id: `sync_product_${localProductId}`,
+        type: "PRODUCT",
+        action: "CREATE",
+        data: { payload, localProductId },
+        createdAt: Date.now(),
+        attempts: 0,
+      });
       await get().loadProducts();
       set({ isLoading: false, error: "Product saved offline - will sync when online" });
     }
@@ -358,37 +351,16 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         const data = await response.json();
         const products = data.data;
 
-        // Transform API products to match StoredProduct schema
-        const transformedProducts = products.map((p: any) => {
-          const retailPrice = p.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.unitPrice || 0;
-          const wholesalePrice = p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.unitPrice || retailPrice;
-          const totalQuantity = (p.stock || []).reduce((sum: number, batch: any) => sum + (batch.quantity - batch.quantityUsed), 0);
-          return {
-            id: p.id,
-            name: p.name,
-            categoryId: p.categoryId,
-            barcode: p.barcode,
-            description: p.description,
-            isActive: p.isActive,
-            retail: {
-              unitPrice: retailPrice,
-              discount: p.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.discount || 0,
-            },
-            wholesale: {
-              unitPrice: wholesalePrice,
-              discount: p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.discount || 0,
-            },
-            stock: { quantity: totalQuantity },
-            lastSynced: Date.now(),
-          };
-        });
+        const pendingOfflineProducts = await getPendingOfflineProducts();
+        const transformedProducts = products.map(transformApiProduct);
+        const mergedProducts = [...transformedProducts, ...pendingOfflineProducts];
 
         await Promise.all(
-          transformedProducts.map((p: any) => db.products.put(p))
+          mergedProducts.map((p: any) => db.products.put(p))
         );
 
         set({
-          products: transformedProducts,
+          products: mergedProducts,
           lastSynced: Date.now(),
         });
       }
