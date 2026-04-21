@@ -24,6 +24,7 @@ import mpesaRoutes from './routes/mpesaRoutes.js';
 import recipeRoutes from './routes/recipeRoutes.js';
 import conversionRoutes from './routes/conversionRoutes.js';
 import azampayRoutes from './routes/azampayRoutes.js';
+import expenseRoutes from './routes/expenseRoutes.js';
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use('/api/v1/subscription', subscriptionRoutes);
 app.use('/api/v1/platform', platformRoutes);
 app.use('/api/v1/recipes', recipeRoutes);
 app.use('/api/v1/conversions', conversionRoutes);
+app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/payments/azampay', azampayRoutes);
 app.use('/api/v1/stores', storeRoutes);
 app.use('/api/v1/settings', settingsRoutes);

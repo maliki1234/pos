@@ -29,6 +29,7 @@ import {
   Tags,
   UserCog,
   Users,
+  WalletCards,
   X,
 } from "lucide-react";
 import { useLangStore } from "@/stores/useLangStore";
@@ -211,6 +212,7 @@ export default function DashboardLayout({ children }: NavProps) {
               <NavGroup title="Business">
                 <NavItem href="/dashboard/customers" icon={Users}>Customers</NavItem>
                 <NavItem href="/dashboard/credit" icon={CreditCard} locked={!hasBusiness}>Credit Ledger</NavItem>
+                <NavItem href="/dashboard/expenses" icon={WalletCards}>Running Costs</NavItem>
                 <NavItem href="/dashboard/analytics" icon={BarChart3} locked={!hasBusiness}>Analytics</NavItem>
                 <NavItem href="/dashboard/reports" icon={ClipboardList}>Reports</NavItem>
               </NavGroup>

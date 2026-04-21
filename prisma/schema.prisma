@@ -54,6 +54,7 @@ model Business {
   recipes               Recipe[]
   productionRuns        ProductionRun[]
   stockConversions      StockConversion[]
+  expenses              Expense[]
 
   @@map("businesses")
 }
@@ -75,6 +76,7 @@ model Store {
   users                 User[]
   transactions          Transaction[]
   reconciliationReports ReconciliationReport[]
+  expenses              Expense[]
 
   @@index([businessId])
   @@map("stores")
@@ -158,6 +160,34 @@ model Customer {
 enum CustomerType {
   RETAIL
   WHOLESALE
+}
+
+enum ExpenseFrequency {
+  ONE_TIME
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model Expense {
+  id          String           @id @default(uuid())
+  businessId  String
+  business    Business         @relation(fields: [businessId], references: [id])
+  storeId     String?
+  store       Store?           @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  category    String
+  description String?
+  amount      Decimal          @db.Decimal(12, 2)
+  frequency   ExpenseFrequency @default(ONE_TIME)
+  expenseDate DateTime         @default(now())
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([businessId])
+  @@index([storeId])
+  @@index([expenseDate])
+  @@map("expenses")
 }
 
 enum UnitLevel {
