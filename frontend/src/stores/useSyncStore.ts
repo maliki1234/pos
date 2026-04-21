@@ -4,6 +4,7 @@ import { useAuthStore } from "./useAuthStore";
 import { useCategoriesStore } from "./useCategoriesStore";
 import { transformApiProduct, useProductsStore } from "./useProductsStore";
 import { useSettingsStore } from "./useSettingsStore";
+import { useStockStore } from "./useStockStore";
 import { useStoreStore } from "./useStoreStore";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
@@ -183,10 +184,14 @@ export const useSyncStore = create<SyncState>((set, get) => ({
             dueDate:               item.data.dueDate,
             loyaltyPointsToRedeem: item.data.loyaltyPointsToRedeem,
             notes:                 item.data.notes,
-          } : item.type === "PRODUCT" && item.data?.payload ? item.data.payload : item.data;
+          } : (item.type === "PRODUCT" || item.type === "STOCK") && item.data?.payload ? item.data.payload : item.data;
+
+          const endpoint = item.type === "STOCK"
+            ? "stock/batch"
+            : `${item.type.toLowerCase()}s`;
 
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/${item.type.toLowerCase()}s`,
+            `${process.env.NEXT_PUBLIC_API_URL}/${endpoint}`,
             {
               method: "POST",
               headers: {
@@ -212,6 +217,55 @@ export const useSyncStore = create<SyncState>((set, get) => ({
               }
               if (synced?.data) {
                 await db.products.put(transformApiProduct(synced.data));
+                const localProductId = item.data?.localProductId;
+                const serverProductId = synced.data.id;
+                if (localProductId && serverProductId) {
+                  const queued = await db.syncQueue.toArray();
+                  await Promise.all(queued.map(async (queuedItem) => {
+                    if (queuedItem.id === item.id) return;
+                    if (queuedItem.type === "STOCK" && queuedItem.data?.payload?.productId === localProductId) {
+                      await db.syncQueue.update(queuedItem.id, {
+                        data: {
+                          ...queuedItem.data,
+                          payload: { ...queuedItem.data.payload, productId: serverProductId },
+                        },
+                      });
+                    }
+                    if (queuedItem.type === "TRANSACTION") {
+                      const updatedItems = queuedItem.data?.items?.map((line: any) =>
+                        line.productId === localProductId ? { ...line, productId: serverProductId } : line
+                      );
+                      if (updatedItems) {
+                        await db.syncQueue.update(queuedItem.id, {
+                          data: { ...queuedItem.data, items: updatedItems },
+                        });
+                      }
+                    }
+                  }));
+                }
+              }
+            }
+            if (item.type === "STOCK") {
+              const synced = await response.json().catch(() => null);
+              if (item.data?.localStockId) {
+                await db.stock.delete(item.data.localStockId);
+              }
+              if (synced?.data) {
+                const stock = {
+                  id: synced.data.id,
+                  productId: synced.data.productId,
+                  batchNumber: String(synced.data.batchNumber),
+                  quantity: synced.data.quantity,
+                  quantityUsed: synced.data.quantityUsed || 0,
+                  unitCost: synced.data.unitCost,
+                  expiryDate: synced.data.expiryDate ? new Date(synced.data.expiryDate).getTime() : undefined,
+                  receivedDate: synced.data.receivedDate ? new Date(synced.data.receivedDate).getTime() : Date.now(),
+                  notes: synced.data.notes,
+                  isActive: synced.data.isActive ?? true,
+                  lastSynced: Date.now(),
+                };
+                await db.stock.put(stock);
+                await useStockStore.getState().updateProductStockSummary(stock.productId);
               }
             }
 

@@ -79,6 +79,27 @@ async function getPendingOfflineProducts() {
   return products.filter(Boolean) as StoredProduct[];
 }
 
+async function withLocalStockTotals(products: StoredProduct[]) {
+  const stockItems = await db.stock.toArray();
+  if (stockItems.length === 0) return products;
+
+  const stockByProduct = new Map<number, number>();
+  for (const item of stockItems) {
+    if (!item.isActive) continue;
+    const available = Math.max(0, Number(item.quantity) - Number(item.quantityUsed || 0));
+    stockByProduct.set(item.productId, (stockByProduct.get(item.productId) || 0) + available);
+  }
+
+  return products.map((product) => {
+    const localQuantity = stockByProduct.get(product.id);
+    if (localQuantity === undefined) return product;
+    return {
+      ...product,
+      stock: { quantity: localQuantity },
+    };
+  });
+}
+
 async function searchCachedProducts(query: string) {
   const needle = query.trim().toLowerCase();
   const cached = await db.products.toArray();
@@ -146,7 +167,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
         const pendingOfflineProducts = await getPendingOfflineProducts();
         const transformedProducts = products.map(transformApiProduct);
-        const mergedProducts = [...transformedProducts, ...pendingOfflineProducts];
+        const mergedProducts = await withLocalStockTotals([...transformedProducts, ...pendingOfflineProducts]);
 
         // Sync IndexedDB without losing locally created products that are still queued.
         await db.products.clear();
@@ -204,7 +225,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
           const data = await response.json();
           const products = data.data;
 
-          const transformedProducts = products.map(transformApiProduct);
+          const transformedProducts = await withLocalStockTotals(products.map(transformApiProduct));
 
           if (transformedProducts.length > 0) {
             await Promise.all(
@@ -353,7 +374,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
         const pendingOfflineProducts = await getPendingOfflineProducts();
         const transformedProducts = products.map(transformApiProduct);
-        const mergedProducts = [...transformedProducts, ...pendingOfflineProducts];
+        const mergedProducts = await withLocalStockTotals([...transformedProducts, ...pendingOfflineProducts]);
 
         await Promise.all(
           mergedProducts.map((p: any) => db.products.put(p))

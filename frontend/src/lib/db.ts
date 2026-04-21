@@ -100,7 +100,7 @@ export interface StoredCreditLedger {
 
 export interface SyncQueue {
   id: string;
-  type: "TRANSACTION" | "PRODUCT" | "CUSTOMER";
+  type: "TRANSACTION" | "PRODUCT" | "STOCK" | "CUSTOMER";
   action: "CREATE" | "UPDATE" | "DELETE";
   data: any;
   createdAt: number;

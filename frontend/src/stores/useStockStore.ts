@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { db, StoredStock } from "../lib/db";
 import { useAuthStore } from "./useAuthStore";
+import { useProductsStore } from "./useProductsStore";
 
 interface LowStockProduct {
   id: number;
@@ -32,6 +33,7 @@ interface StockState {
   deductStockFIFO: (productId: number, quantity: number) => Promise<StoredStock[]>;
   updateStock: (id: string, quantity: number) => Promise<void>;
   syncStock: () => Promise<void>;
+  updateProductStockSummary: (productId: number) => Promise<void>;
 }
 
 /**
@@ -45,6 +47,25 @@ export const useStockStore = create<StockState>((set, get) => ({
   lowStockCount: 0,
   isLoading: false,
   error: null,
+
+  // Keep the product summary in sync because the cashier reads stock from
+  // product.stock.quantity, not directly from the stock batch table.
+  updateProductStockSummary: async (productId: number) => {
+    const stockItems = await db.stock.where("productId").equals(productId).toArray();
+    const totalQuantity = stockItems.reduce((sum, item) => {
+      if (!item.isActive) return sum;
+      return sum + Math.max(0, Number(item.quantity) - Number(item.quantityUsed || 0));
+    }, 0);
+    const product = await db.products.get(productId);
+    if (product) {
+      await db.products.put({ ...product, stock: { quantity: totalQuantity } });
+      useProductsStore.setState((state) => ({
+        products: state.products.map((p) =>
+          p.id === productId ? { ...p, stock: { quantity: totalQuantity } } : p
+        ),
+      }));
+    }
+  },
 
   fetchLowStockProducts: async () => {
     try {
@@ -124,6 +145,7 @@ export const useStockStore = create<StockState>((set, get) => ({
         }));
 
         await Promise.all(transformedStock.map((item: any) => db.stock.put(item)));
+        await get().updateProductStockSummary(productId);
         set({ stock: transformedStock, isLoading: false });
       } else {
         throw new Error("Failed to fetch stock");
@@ -151,18 +173,17 @@ export const useStockStore = create<StockState>((set, get) => ({
    * @param {number} data.unitCost - Cost per unit
    * @param {Date} [data.expiryDate] - Optional expiry date
    * @param {string} [data.notes] - Optional notes (supplier, location, etc.)
-   */
+  */
   addStock: async (data) => {
     set({ isLoading: true, error: null });
+    const payload = {
+      productId: data.productId,
+      quantity: data.quantity,
+      unitCost: data.unitCost,
+      expiryDate: data.expiryDate ? new Date(data.expiryDate).toISOString() : undefined,
+      notes: data.notes,
+    };
     try {
-      const payload = {
-        productId: data.productId,
-        quantity: data.quantity,
-        unitCost: data.unitCost,
-        expiryDate: data.expiryDate ? new Date(data.expiryDate).toISOString() : undefined,
-        notes: data.notes,
-      };
-
       // Try API first
       const token = useAuthStore.getState().token;
       const headers: any = { "Content-Type": "application/json" };
@@ -198,6 +219,7 @@ export const useStockStore = create<StockState>((set, get) => ({
       };
 
       await db.stock.put(transformedStock);
+      await get().updateProductStockSummary(data.productId);
       await get().loadStockByProduct(data.productId);
       set({ isLoading: false });
     } catch (error: any) {
@@ -218,6 +240,18 @@ export const useStockStore = create<StockState>((set, get) => ({
       };
 
       await db.stock.put(offlineStock);
+      await db.syncQueue.put({
+        id: `sync_stock_${offlineId}`,
+        type: "STOCK",
+        action: "CREATE",
+        data: {
+          localStockId: offlineId,
+          payload,
+        },
+        createdAt: Date.now(),
+        attempts: 0,
+      });
+      await get().updateProductStockSummary(data.productId);
       await get().loadStockByProduct(data.productId);
       set({ isLoading: false, error: "Stock saved offline - will sync when online" });
     }
@@ -281,6 +315,7 @@ export const useStockStore = create<StockState>((set, get) => ({
       // Update stock
       stockItem.quantityUsed += qtyToUse;
       await db.stock.put(stockItem);
+      await get().updateProductStockSummary(productId);
       usedStock.push(stockItem);
 
       remainingQty -= qtyToUse;
@@ -320,6 +355,7 @@ export const useStockStore = create<StockState>((set, get) => ({
       const stock = await db.stock.get(id);
       if (stock) {
         await db.stock.put({ ...stock, quantity });
+        await get().updateProductStockSummary(stock.productId);
       }
       set({ isLoading: false });
     } catch (error: any) {
@@ -358,6 +394,8 @@ export const useStockStore = create<StockState>((set, get) => ({
         }));
 
         await Promise.all(transformedStock.map((item: any) => db.stock.put(item)));
+        const productIds = [...new Set<number>(transformedStock.map((item: any) => Number(item.productId)))];
+        await Promise.all(productIds.map((productId) => get().updateProductStockSummary(productId)));
         set({ stock: transformedStock });
       }
     } catch (error) {
