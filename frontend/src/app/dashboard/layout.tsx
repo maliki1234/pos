@@ -9,13 +9,14 @@ import { useStockStore } from "@/stores/useStockStore";
 import { useStoreStore } from "@/stores/useStoreStore";
 import { useSubscriptionStore } from "@/stores/useSubscriptionStore";
 import { CurrencySelector } from "@/components/CurrencySelector";
-import { LogOut, Wifi, WifiOff, AlertCircle, Lock, ShieldCheck, X, Languages, ChefHat, Barcode, ArrowLeftRight } from "lucide-react";
+import { LogOut, Lock, ShieldCheck, X, Languages, ChefHat, Barcode, ArrowLeftRight } from "lucide-react";
 import { useLangStore } from "@/stores/useLangStore";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { OfflinePinModal } from "@/components/OfflinePinModal";
 import { SetPinModal } from "@/components/SetPinModal";
+import { OfflineStatus } from "@/components/OfflineStatus";
 
 interface NavProps {
   children: React.ReactNode;
@@ -24,7 +25,7 @@ interface NavProps {
 export default function DashboardLayout({ children }: NavProps) {
   const router = useRouter();
   const { user, logout, isAuthenticated, isPinLocked, hasPinSet, showReauthBanner, dismissReauthBanner, isLoading } = useAuthStore();
-  const { isOnline, pendingCount, initializeSync } = useSyncStore();
+  const { initializeSync } = useSyncStore();
   const [showSetPin, setShowSetPin] = useState(false);
   const { lowStockCount, fetchLowStockProducts } = useStockStore();
   const { subscription, fetchCurrent: fetchSubscription } = useSubscriptionStore();
@@ -305,26 +306,7 @@ export default function DashboardLayout({ children }: NavProps) {
             </button>
             <ThemeToggle />
 
-            <div className="flex items-center gap-2">
-              {isOnline ? (
-                <>
-                  <Wifi className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium text-green-600">Online</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm font-medium text-orange-600">Offline</span>
-                </>
-              )}
-            </div>
-
-            {pendingCount > 0 && (
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <span className="text-sm font-medium text-amber-600">{pendingCount} pending</span>
-              </div>
-            )}
+            <OfflineStatus />
           </div>
         </div>
 

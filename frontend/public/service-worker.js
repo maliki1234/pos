@@ -1,9 +1,12 @@
 // Service Worker for offline-first POS system
-const CACHE_NAME = "pos-app-v1";
+const CACHE_NAME = "pos-app-v2";
 const urlsToCache = [
   "/",
   "/offline",
-  "/images/fallback.png"
+  "/dashboard/cashier",
+  "/manifest.webmanifest",
+  "/icons/icon-192.svg",
+  "/icons/icon-512.svg"
 ];
 
 // Install event - cache resources
@@ -34,7 +37,7 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Fetch event - network first, fallback to cache
+// Fetch event - network first for pages, cache first for static assets
 self.addEventListener("fetch", (event) => {
   // Skip non-GET requests
   if (event.request.method !== "GET") {
@@ -46,36 +49,44 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const requestUrl = new URL(event.request.url);
+  const isStaticAsset =
+    requestUrl.pathname.startsWith("/_next/") ||
+    requestUrl.pathname.startsWith("/icons/") ||
+    requestUrl.pathname === "/manifest.webmanifest";
+
+  if (isStaticAsset) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        return cached || fetch(event.request).then((response) => {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Clone the response
-        const responseClone = response.clone();
-
-        // Cache successful responses
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseClone);
-        });
-
-        return response;
-      })
-      .catch(() => {
-        // Fall back to cache
-        return caches.match(event.request).then((response) => {
-          return response || caches.match("/offline");
-        });
-      })
+    fetch(event.request).then((response) => {
+      const responseClone = response.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+      return response;
+    }).catch(() => {
+      return caches.match(event.request).then((response) => {
+        return response || caches.match("/dashboard/cashier") || caches.match("/offline");
+      });
+    })
   );
 });
 
-// Background sync for pending transactions
+// Notify open clients to run their IndexedDB-backed sync logic.
 self.addEventListener("sync", (event) => {
   if (event.tag === "sync-transactions") {
     event.waitUntil(
-      fetch("/api/sync", {
-        method: "POST"
-      }).catch((err) => {
-        console.error("Sync failed:", err);
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+        clients.forEach((client) => client.postMessage({ type: "SYNC_TRANSACTIONS" }));
       })
     );
   }

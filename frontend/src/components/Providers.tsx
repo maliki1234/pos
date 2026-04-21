@@ -14,7 +14,10 @@ interface ProvidersProps {
 
 export const Providers: React.FC<ProvidersProps> = ({ children }) => {
   const restoreSession = useAuthStore((state) => state.restoreSession);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const token = useAuthStore((state) => state.token);
   const initializeSync = useSyncStore((state) => state.initializeSync);
+  const preloadOfflineData = useSyncStore((state) => state.preloadOfflineData);
 
   useEffect(() => {
     // Register service worker for offline support
@@ -26,6 +29,12 @@ export const Providers: React.FC<ProvidersProps> = ({ children }) => {
     // Initialize sync
     initializeSync();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      preloadOfflineData();
+    }
+  }, [isAuthenticated, token, preloadOfflineData]);
 
   return (
     <ThemeProvider>

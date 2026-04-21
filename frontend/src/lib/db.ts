@@ -121,6 +121,12 @@ export interface UserSession {
   pinHash?: string;
 }
 
+export interface OfflineMeta {
+  key: string;
+  value: any;
+  updatedAt: number;
+}
+
 export class POSDatabase extends Dexie {
   categories!: Table<StoredCategory>;
   products!: Table<StoredProduct>;
@@ -130,6 +136,7 @@ export class POSDatabase extends Dexie {
   syncQueue!: Table<SyncQueue>;
   userSession!: Table<UserSession>;
   creditLedger!: Table<StoredCreditLedger>;
+  offlineMeta!: Table<OfflineMeta>;
 
   constructor() {
     super("POSDatabase");
@@ -164,6 +171,19 @@ export class POSDatabase extends Dexie {
       syncQueue: "id, type, action, createdAt, attempts",
       userSession: "id",
       creditLedger: "id, customerId, status, dueDate, lastSynced",
+    });
+
+    // Version 4: Track offline readiness metadata
+    this.version(4).stores({
+      categories: "id, name, lastSynced",
+      products: "id, sku, lastSynced",
+      stock: "id, productId, batchNumber, receivedDate, expiryDate",
+      customers: "id, email, customerType, lastSynced",
+      transactions: "id, transactionNo, customerId, syncStatus, createdAt",
+      syncQueue: "id, type, action, createdAt, attempts",
+      userSession: "id",
+      creditLedger: "id, customerId, status, dueDate, lastSynced",
+      offlineMeta: "key, updatedAt",
     });
   }
 }

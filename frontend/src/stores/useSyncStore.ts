@@ -1,16 +1,23 @@
 import { create } from "zustand";
 import { db } from "../lib/db";
 import { useAuthStore } from "./useAuthStore";
+import { useCategoriesStore } from "./useCategoriesStore";
+import { useProductsStore } from "./useProductsStore";
+import { useSettingsStore } from "./useSettingsStore";
+import { useStoreStore } from "./useStoreStore";
 
 interface SyncState {
   isOnline: boolean;
   isSyncing: boolean;
+  isPreloading: boolean;
   pendingCount: number;
   lastSyncTime?: number;
+  lastPreloadTime?: number;
   error?: string;
 
   // Actions
   initializeSync: () => void;
+  preloadOfflineData: () => Promise<void>;
   syncPendingTransactions: () => Promise<void>;
   getPendingCount: () => Promise<number>;
   clearOldSyncData: () => Promise<void>;
@@ -19,8 +26,10 @@ interface SyncState {
 export const useSyncStore = create<SyncState>((set, get) => ({
   isOnline: typeof window !== "undefined" ? navigator.onLine : true,
   isSyncing: false,
+  isPreloading: false,
   pendingCount: 0,
   lastSyncTime: undefined,
+  lastPreloadTime: undefined,
   error: undefined,
 
   initializeSync: () => {
@@ -43,6 +52,10 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       console.log("Offline mode activated");
     });
 
+    window.addEventListener("pos-sync-requested", () => {
+      get().syncPendingTransactions();
+    });
+
     // Periodic sync check every 30 seconds when online
     setInterval(() => {
       if (get().isOnline && !get().isSyncing) {
@@ -52,6 +65,34 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
     // Initial pending count
     get().getPendingCount();
+    db.offlineMeta.get("lastPreloadTime").then((meta) => {
+      if (meta?.value) set({ lastPreloadTime: Number(meta.value) });
+    });
+  },
+
+  preloadOfflineData: async () => {
+    if (!get().isOnline || get().isPreloading) return;
+
+    set({ isPreloading: true, error: undefined });
+    try {
+      await Promise.allSettled([
+        useProductsStore.getState().loadProducts(),
+        useCategoriesStore.getState().loadCategories(),
+        useSettingsStore.getState().fetchSettings(),
+        useStoreStore.getState().fetchStores(),
+      ]);
+
+      const timestamp = Date.now();
+      await db.offlineMeta.put({
+        key: "lastPreloadTime",
+        value: timestamp,
+        updatedAt: timestamp,
+      });
+      set({ lastPreloadTime: timestamp, isPreloading: false });
+      await get().getPendingCount();
+    } catch (error: any) {
+      set({ error: error.message, isPreloading: false });
+    }
   },
 
   getPendingCount: async () => {
@@ -143,6 +184,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
       // Update pending count
       await get().getPendingCount();
+      await get().preloadOfflineData();
     } catch (error: any) {
       set({
         error: error.message,

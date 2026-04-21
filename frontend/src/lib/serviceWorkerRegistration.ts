@@ -32,6 +32,12 @@ export async function registerServiceWorker() {
         console.log("Periodic sync registration failed:", err);
       });
 
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data?.type === "SYNC_TRANSACTIONS") {
+        window.dispatchEvent(new CustomEvent("pos-sync-requested"));
+      }
+    });
+
     return registration;
   } catch (error) {
     console.error("Service Worker registration failed:", error);

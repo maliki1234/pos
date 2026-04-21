@@ -8,6 +8,13 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "POS System - Offline First",
   description: "Professional Point of Sale System with Offline-First Architecture",
+  manifest: "/manifest.webmanifest",
+  applicationName: "POS System",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "POS System",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
