@@ -55,7 +55,7 @@ interface Recommendation {
 export default function ReportsPage() {
   const fmt = useFormat();
   const {
-    dashboardStats, salesTrend, topProducts, paymentBreakdown, profitData, staffPerformance,
+    dashboardStats, salesTrend, topProducts, paymentBreakdown, profitData, profitSummary, staffPerformance,
     fetchDashboardStats, fetchSalesTrend, fetchTopProducts, fetchPaymentBreakdown,
     fetchProfitReport, fetchStaffPerformance,
   } = useAnalyticsStore();
@@ -66,7 +66,7 @@ export default function ReportsPage() {
   const thirtyAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const sevenAgo  = new Date(Date.now() -  7 * 86400000).toISOString().slice(0, 10);
 
-  const [period, setPeriod] = useState<"7d" | "30d" | "custom">("30d");
+  const [period, setPeriod] = useState<"today" | "7d" | "30d" | "custom">("today");
   const [start, setStart] = useState(thirtyAgo);
   const [end,   setEnd]   = useState(today);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,7 +78,7 @@ export default function ReportsPage() {
   }, []);
 
   useEffect(() => {
-    const s = period === "7d" ? sevenAgo : period === "30d" ? thirtyAgo : start;
+    const s = period === "today" ? today : period === "7d" ? sevenAgo : period === "30d" ? thirtyAgo : start;
     const e = period === "custom" ? end : today;
     setIsLoading(true);
     Promise.all([
@@ -184,13 +184,13 @@ export default function ReportsPage() {
           <p className="text-muted-foreground text-sm">Real-time insights powered by your sales data.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {(["7d", "30d", "custom"] as const).map((p) => (
+          {(["today", "7d", "30d", "custom"] as const).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${period === p ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted"}`}
             >
-              {p === "7d" ? "Last 7 Days" : p === "30d" ? "Last 30 Days" : "Custom"}
+              {p === "today" ? "Daily Report" : p === "7d" ? "Last 7 Days" : p === "30d" ? "Last 30 Days" : "Custom"}
             </button>
           ))}
           {period === "custom" && (
@@ -224,6 +224,53 @@ export default function ReportsPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {profitSummary && (
+        <section>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Profit Summary</h2>
+              <p className="text-sm text-muted-foreground">Net profit includes running costs for the selected period.</p>
+            </div>
+            <button
+              onClick={() => exportCSV("profit_summary.csv", [{
+                revenue: profitSummary.revenue,
+                product_cost: profitSummary.productCost,
+                gross_profit: profitSummary.grossProfit,
+                running_costs: profitSummary.runningCosts,
+                net_profit: profitSummary.netProfit,
+                gross_margin_pct: profitSummary.grossMarginPct,
+                net_margin_pct: profitSummary.netMarginPct,
+              }])}
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <Download className="h-3 w-3" /> CSV
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            {[
+              { label: "Revenue", value: fmt(profitSummary.revenue), icon: DollarSign, color: "text-primary" },
+              { label: "Product Cost", value: fmt(profitSummary.productCost), icon: ShoppingCart, color: "text-orange-600" },
+              { label: "Gross Profit", value: fmt(profitSummary.grossProfit), icon: TrendingUp, color: "text-green-600" },
+              { label: "Running Costs", value: fmt(profitSummary.runningCosts), icon: Clock, color: "text-red-500" },
+              { label: "Net Profit", value: fmt(profitSummary.netProfit), icon: Star, color: profitSummary.netProfit >= 0 ? "text-green-600" : "text-red-500" },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <Card key={label}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{label}</CardTitle>
+                  <Icon className={`h-4 w-4 ${color}`} />
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xl font-bold">{value}</p>
+                  {label === "Net Profit" && (
+                    <p className="text-xs text-muted-foreground">{profitSummary.netMarginPct}% net margin</p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Smart Recommendations */}

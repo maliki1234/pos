@@ -7,6 +7,15 @@ const parseDateParam = (val: unknown): Date | undefined => {
   return isNaN(d.getTime()) ? undefined : d;
 };
 
+const parseEndDateParam = (val: unknown): Date | undefined => {
+  const d = parseDateParam(val);
+  if (!d) return undefined;
+  if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+    d.setHours(23, 59, 59, 999);
+  }
+  return d;
+};
+
 const bid = (req: Request) => req.user!.businessId;
 
 export const getDashboardStats = async (req: Request, res: Response, next: NextFunction) => {
@@ -19,7 +28,7 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
 export const getSalesTrend = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const startDate = parseDateParam(req.query.startDate) ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const endDate = parseDateParam(req.query.endDate) ?? new Date();
+    const endDate = parseEndDateParam(req.query.endDate) ?? new Date();
     const data = await analyticsService.getSalesSummary(bid(req), startDate, endDate);
     res.json({ success: true, data });
   } catch (error) { next(error); }
@@ -29,7 +38,7 @@ export const getTopProducts = async (req: Request, res: Response, next: NextFunc
   try {
     const limit = parseInt(req.query.limit as string) || 10;
     const startDate = parseDateParam(req.query.startDate);
-    const endDate = parseDateParam(req.query.endDate);
+    const endDate = parseEndDateParam(req.query.endDate);
     const data = await analyticsService.getTopProducts(bid(req), limit, startDate, endDate);
     res.json({ success: true, data });
   } catch (error) { next(error); }
@@ -38,7 +47,7 @@ export const getTopProducts = async (req: Request, res: Response, next: NextFunc
 export const getPaymentBreakdown = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const startDate = parseDateParam(req.query.startDate);
-    const endDate = parseDateParam(req.query.endDate);
+    const endDate = parseEndDateParam(req.query.endDate);
     const data = await analyticsService.getPaymentMethodBreakdown(bid(req), startDate, endDate);
     res.json({ success: true, data });
   } catch (error) { next(error); }
@@ -47,16 +56,16 @@ export const getPaymentBreakdown = async (req: Request, res: Response, next: Nex
 export const getProfitReport = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const startDate = parseDateParam(req.query.startDate);
-    const endDate = parseDateParam(req.query.endDate);
-    const data = await analyticsService.getProfitMargin(bid(req), startDate, endDate);
-    res.json({ success: true, data });
+    const endDate = parseEndDateParam(req.query.endDate);
+    const data = await analyticsService.getProfitSummary(bid(req), startDate, endDate);
+    res.json({ success: true, data: data.items, summary: data.summary });
   } catch (error) { next(error); }
 };
 
 export const getStaffPerformance = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const startDate = parseDateParam(req.query.startDate);
-    const endDate = parseDateParam(req.query.endDate);
+    const endDate = parseEndDateParam(req.query.endDate);
     const data = await analyticsService.getStaffPerformance(bid(req), startDate, endDate);
     res.json({ success: true, data });
   } catch (error) { next(error); }

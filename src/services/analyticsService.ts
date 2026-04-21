@@ -171,6 +171,40 @@ export class AnalyticsService {
     });
   }
 
+  async getProfitSummary(businessId: string, startDate?: Date, endDate?: Date) {
+    const productMargins = await this.getProfitMargin(businessId, startDate, endDate);
+    const revenue = productMargins.reduce((sum, item) => sum + item.revenue, 0);
+    const productCost = productMargins.reduce((sum, item) => sum + item.cost, 0);
+    const grossProfit = revenue - productCost;
+
+    const expenseWhere: any = { businessId, isActive: true };
+    if (startDate || endDate) {
+      expenseWhere.expenseDate = {};
+      if (startDate) expenseWhere.expenseDate.gte = startDate;
+      if (endDate) expenseWhere.expenseDate.lte = endDate;
+    }
+
+    const expenses = await prisma.expense.aggregate({
+      where: expenseWhere,
+      _sum: { amount: true },
+    });
+    const runningCosts = parseFloat((expenses._sum.amount ?? 0).toString());
+    const netProfit = grossProfit - runningCosts;
+
+    return {
+      items: productMargins,
+      summary: {
+        revenue,
+        productCost,
+        grossProfit,
+        runningCosts,
+        netProfit,
+        grossMarginPct: revenue > 0 ? Math.round((grossProfit / revenue) * 100 * 10) / 10 : 0,
+        netMarginPct: revenue > 0 ? Math.round((netProfit / revenue) * 100 * 10) / 10 : 0,
+      },
+    };
+  }
+
   async getStaffPerformance(businessId: string, startDate?: Date, endDate?: Date) {
     const where: any = { businessId, isVoided: false, transactionType: 'SALE' as const };
     if (startDate || endDate) {

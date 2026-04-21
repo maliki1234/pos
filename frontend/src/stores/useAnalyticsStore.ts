@@ -43,6 +43,16 @@ interface ProfitEntry {
   marginPct: number;
 }
 
+interface ProfitSummary {
+  revenue: number;
+  productCost: number;
+  grossProfit: number;
+  runningCosts: number;
+  netProfit: number;
+  grossMarginPct: number;
+  netMarginPct: number;
+}
+
 interface StaffPerformance {
   userId: string;
   name: string;
@@ -58,6 +68,7 @@ interface AnalyticsState {
   topProducts: TopProduct[];
   paymentBreakdown: PaymentBreakdown[];
   profitData: ProfitEntry[];
+  profitSummary: ProfitSummary | null;
   staffPerformance: StaffPerformance[];
   isLoading: boolean;
   error: string | null;
@@ -84,6 +95,7 @@ export const useAnalyticsStore = create<AnalyticsState>((set) => ({
   topProducts: [],
   paymentBreakdown: [],
   profitData: [],
+  profitSummary: null,
   staffPerformance: [],
   isLoading: false,
   error: null,
@@ -145,7 +157,7 @@ export const useAnalyticsStore = create<AnalyticsState>((set) => ({
       const res = await fetch(`${API}/analytics/profit${q}`, { headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to fetch profit report");
       const data = await res.json();
-      set({ profitData: data.data, isLoading: false });
+      set({ profitData: data.data, profitSummary: data.summary ?? null, isLoading: false });
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
     }

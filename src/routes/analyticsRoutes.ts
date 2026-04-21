@@ -18,8 +18,8 @@ router.get('/dashboard', authenticate, requirePlan('BUSINESS'), getDashboardStat
 router.get('/sales-trend',        authenticate, authorize(['ADMIN', 'MANAGER']), requirePlan('BUSINESS'), getSalesTrend);
 router.get('/top-products',       authenticate, authorize(['ADMIN', 'MANAGER']), requirePlan('BUSINESS'), getTopProducts);
 router.get('/payment-breakdown',  authenticate, authorize(['ADMIN', 'MANAGER']), requirePlan('BUSINESS'), getPaymentBreakdown);
-// Profit + staff: ENTERPRISE plan
-router.get('/profit',             authenticate, authorize(['ADMIN', 'MANAGER']), requirePlan('ENTERPRISE'), getProfitReport);
+// Profit is part of core reporting; staff performance remains ENTERPRISE.
+router.get('/profit',             authenticate, authorize(['ADMIN', 'MANAGER']), requirePlan('BUSINESS'), getProfitReport);
 router.get('/staff',              authenticate, authorize(['ADMIN', 'MANAGER']), requirePlan('ENTERPRISE'), getStaffPerformance);
 
 export default router;
