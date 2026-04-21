@@ -37,7 +37,7 @@ export default function CashierPage() {
     paymentMethod, setPaymentMethod, dueDate, setDueDate,
     setCustomer, setStore, loyaltyPointsToRedeem, setLoyaltyRedemption,
   } = useCartStore();
-  const { products, isLoading, searchProducts } = useProductsStore();
+  const { products, isLoading, searchProducts, loadProducts } = useProductsStore();
   const { isOnline } = useSyncStore();
   const { token } = useAuthStore();
   const { stores } = useStoreStore();
@@ -116,7 +116,8 @@ export default function CashierPage() {
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+    loadProducts();
+  }, [fetchSettings, loadProducts]);
 
   const handleCustomerSearch = async (value: string) => {
     setCustomerQuery(value);
@@ -170,7 +171,7 @@ export default function CashierPage() {
     if (value.trim()) {
       await searchProducts(value);
     } else {
-      useProductsStore.getState().clearProducts();
+      await useProductsStore.getState().loadProducts();
     }
   };
 

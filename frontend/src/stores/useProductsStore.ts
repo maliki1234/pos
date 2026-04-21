@@ -187,6 +187,12 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
             };
           });
 
+          if (transformedProducts.length > 0) {
+            await Promise.all(
+              transformedProducts.map((p: any) => db.products.put(p))
+            );
+          }
+
           set({ products: transformedProducts, isLoading: false });
           return;
         }
