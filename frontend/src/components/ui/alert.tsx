@@ -2,7 +2,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const alertVariants = {
-  default: "bg-slate-950 text-slate-50",
+  default: "border-border bg-card text-card-foreground",
   destructive: "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
   success: "bg-green-500/10 border-green-500/20 text-green-700",
   warning: "bg-yellow-500/10 border-yellow-500/20 text-yellow-700",
@@ -33,7 +33,7 @@ const AlertTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <h5
     ref={ref}
-    className={cn("mb-1 font-medium leading-tight tracking-tight", className)}
+    className={cn("mb-1 font-medium leading-tight", className)}
     {...props}
   />
 ))

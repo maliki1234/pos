@@ -120,7 +120,7 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
+          <h1 className="text-3xl font-bold">Customers</h1>
           <p className="text-muted-foreground">Manage your customer base</p>
         </div>
         {canManage && (
@@ -273,7 +273,7 @@ export default function CustomersPage() {
                       <TableCell>{customer.phone ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{customer.email ?? "—"}</TableCell>
                       <TableCell>
-                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${customer.customerType === "WHOLESALE" ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"}`}>
+                        <span className={`rounded px-2 py-0.5 text-xs font-medium ${customer.customerType === "WHOLESALE" ? "bg-secondary text-secondary-foreground" : "bg-primary/10 text-primary"}`}>
                           {customer.customerType ?? "RETAIL"}
                         </span>
                       </TableCell>

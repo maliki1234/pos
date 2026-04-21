@@ -263,7 +263,7 @@ export default function CreditLedgerPage() {
           </div>
 
           {customerResults.length > 0 && (
-            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border bg-popover text-popover-foreground shadow-lg">
               {customerResults.map((c: any) => (
                 <button
                   key={c.id}

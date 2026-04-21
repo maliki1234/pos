@@ -20,7 +20,7 @@ function authHeaders() {
 const PLAN_COLORS: Record<string, string> = {
   STARTER: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
   BUSINESS: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  ENTERPRISE: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  ENTERPRISE: "bg-secondary text-secondary-foreground",
 };
 const STATUS_COLORS: Record<string, string> = {
   ACTIVE: "bg-green-100 text-green-700",
@@ -111,11 +111,11 @@ export default function PlatformDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Top bar */}
-      <header className="bg-white dark:bg-slate-800 border-b shadow-sm px-6 py-3 flex items-center justify-between">
+      <header className="flex items-center justify-between border-b bg-card px-6 py-3 text-card-foreground shadow-sm">
         <div className="flex items-center gap-3">
-          <Shield className="h-6 w-6 text-blue-600" />
+          <Shield className="h-6 w-6 text-primary" />
           <div>
             <h1 className="text-lg font-bold">Platform Admin</h1>
             <p className="text-xs text-muted-foreground">{admin.name} · {admin.email}</p>
@@ -139,13 +139,13 @@ export default function PlatformDashboard() {
             <StatCard icon={<Building2 className="h-5 w-5" />} label="Total Businesses" value={stats.totalBusinesses} />
             <StatCard icon={<TrendingUp className="h-5 w-5 text-gray-500" />} label="Starter Plan" value={stats.planBreakdown?.STARTER ?? 0} />
             <StatCard icon={<TrendingUp className="h-5 w-5 text-blue-500" />} label="Business Plan" value={stats.planBreakdown?.BUSINESS ?? 0} />
-            <StatCard icon={<TrendingUp className="h-5 w-5 text-purple-500" />} label="Enterprise Plan" value={stats.planBreakdown?.ENTERPRISE ?? 0} />
+            <StatCard icon={<TrendingUp className="h-5 w-5 text-primary" />} label="Enterprise Plan" value={stats.planBreakdown?.ENTERPRISE ?? 0} />
           </div>
         )}
 
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Tenant List */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border shadow-sm">
+          <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
             <div className="p-4 border-b flex items-center justify-between gap-3">
               <h2 className="font-semibold flex items-center gap-2"><Building2 className="h-4 w-4" /> All Businesses</h2>
               <div className="relative">
@@ -193,7 +193,7 @@ export default function PlatformDashboard() {
           </div>
 
           {/* AI Customer Finder */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border shadow-sm flex flex-col">
+          <div className="flex flex-col rounded-lg border bg-card text-card-foreground shadow-sm">
             <div className="p-4 border-b">
               <h2 className="font-semibold flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-yellow-500" />
@@ -262,7 +262,7 @@ export default function PlatformDashboard() {
                         </p>
                         <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">{aiResult.explanation}</p>
                         {aiResult.insights && (
-                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 border-t border-blue-200 pt-2">
+                          <p className="mt-2 border-t border-primary/20 pt-2 text-xs text-primary">
                             💡 {aiResult.insights}
                           </p>
                         )}
@@ -310,7 +310,7 @@ export default function PlatformDashboard() {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border shadow-sm p-4 flex items-center gap-4">
+    <div className="flex items-center gap-4 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
       <div className="text-muted-foreground">{icon}</div>
       <div>
         <p className="text-2xl font-bold">{value}</p>

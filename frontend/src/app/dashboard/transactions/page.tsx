@@ -125,7 +125,7 @@ export default function TransactionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
+        <h1 className="text-3xl font-bold">Transactions</h1>
         <p className="text-muted-foreground">All sales, returns, and voids</p>
       </div>
 
@@ -187,7 +187,7 @@ export default function TransactionsPage() {
 
                       {/* Amount + actions */}
                       <div className="flex items-center gap-3 shrink-0">
-                        <span className={`font-bold text-base ${isReturn ? "text-blue-600" : "text-foreground"}`}>
+                        <span className={`text-base font-bold ${isReturn ? "text-primary" : "text-foreground"}`}>
                           {isReturn ? "−" : ""}{fmt(parseFloat(txn.totalAmount ?? 0))}
                         </span>
                         {canVoid && !isVoided && !isReturn && (
@@ -202,7 +202,7 @@ export default function TransactionsPage() {
                         {!isVoided && !isReturn && (txn.items?.length > 0) && (
                           <button
                             onClick={e => { e.stopPropagation(); openReturn(txn); }}
-                            className="p-1.5 rounded hover:bg-blue-50 text-muted-foreground hover:text-blue-600"
+                            className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                             title="Return items"
                           >
                             <RotateCcw className="h-4 w-4" />
@@ -321,7 +321,7 @@ export default function TransactionsPage() {
                       className="w-16 border rounded px-2 py-1 text-sm text-center bg-background focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     <button
-                      className="text-xs text-blue-600 hover:underline"
+                      className="text-xs text-primary hover:underline"
                       onClick={() => setReturnItems(prev => ({ ...prev, [item.productId]: item.quantity }))}
                     >
                       All
@@ -349,7 +349,7 @@ export default function TransactionsPage() {
               <button
                 onClick={handleReturn}
                 disabled={returnSaving}
-                className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {returnSaving ? "Processing…" : "Process Return"}
               </button>

@@ -161,7 +161,7 @@ export default function RecipesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <h1 className="text-3xl font-bold flex items-center gap-2">
             <ChefHat className="h-7 w-7" /> Recipes & Production
           </h1>
           <p className="text-muted-foreground mt-1">Define how products are made from ingredients</p>
@@ -313,7 +313,7 @@ export default function RecipesPage() {
               <CardContent className="space-y-3">
                 {/* Ingredients */}
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Ingredients</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Ingredients</p>
                   <div className="space-y-1">
                     {r.ingredients.map(ing => (
                       <div key={ing.id} className="flex justify-between text-sm">
@@ -394,7 +394,7 @@ export default function RecipesPage() {
 
               {/* Ingredients needed preview */}
               <div className="rounded-lg bg-muted/40 p-3 text-sm">
-                <p className="font-medium mb-1 text-xs uppercase tracking-wide text-muted-foreground">Will deduct from stock:</p>
+                <p className="font-medium mb-1 text-xs uppercase text-muted-foreground">Will deduct from stock:</p>
                 {showRunModal.ingredients.map(ing => {
                   const batches = Number(runForm.quantityProduced || 0) / showRunModal.yieldQty;
                   const needed = Number(ing.quantity) * batches;

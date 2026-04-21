@@ -125,7 +125,7 @@ export default function BarcodesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Barcode Manager</h1>
+          <h1 className="text-3xl font-bold">Barcode Manager</h1>
           <p className="text-muted-foreground mt-1">Generate and print barcode labels for your products</p>
         </div>
         <div className="flex items-center gap-2">

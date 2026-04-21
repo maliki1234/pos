@@ -84,16 +84,16 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-8">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8 text-foreground">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
 
       <div className="w-full max-w-lg">
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
+        <Card className="border shadow-lg">
+          <CardHeader className="rounded-t-lg border-b bg-primary text-primary-foreground">
             <CardTitle className="text-2xl">Register Your Business</CardTitle>
-            <CardDescription className="text-blue-100">
+            <CardDescription className="text-primary-foreground/80">
               Create your POS account — free STARTER plan, upgrade anytime
             </CardDescription>
           </CardHeader>
@@ -215,7 +215,7 @@ export default function RegisterPage() {
 
             <div className="mt-4 border-t pt-4 text-center text-sm text-muted-foreground">
               Already have an account?{" "}
-              <Link href="/" className="text-blue-600 hover:underline font-medium">
+              <Link href="/" className="font-medium text-primary hover:underline">
                 Sign in
               </Link>
             </div>

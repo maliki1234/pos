@@ -276,7 +276,7 @@ export default function SubscriptionPage() {
                 <div key={plan} className={`rounded-xl border-2 p-5 flex flex-col gap-4 relative ${PLAN_COLORS[plan]} ${isCurrent ? "ring-2 ring-primary ring-offset-2" : ""}`}>
                   {plan === "BUSINESS" && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full">POPULAR</div>}
                   <div className="flex items-center gap-3">
-                    <Icon className={`h-6 w-6 ${plan === "BUSINESS" ? "text-primary" : plan === "ENTERPRISE" ? "text-purple-500" : "text-muted-foreground"}`} />
+                    <Icon className={`h-6 w-6 ${plan === "BUSINESS" || plan === "ENTERPRISE" ? "text-primary" : "text-muted-foreground"}`} />
                     <h2 className="text-lg font-bold">{plan}</h2>
                   </div>
                   <div>
@@ -287,7 +287,7 @@ export default function SubscriptionPage() {
                   <ul className="space-y-1.5 flex-1">
                     {PLAN_FEATURES[plan].map((f) => (
                       <li key={f} className="flex items-start gap-2 text-sm">
-                        <Check className={`h-4 w-4 shrink-0 mt-0.5 ${plan === "ENTERPRISE" ? "text-purple-500" : plan === "BUSINESS" ? "text-primary" : "text-green-500"}`} />
+                        <Check className={`mt-0.5 h-4 w-4 shrink-0 ${plan === "ENTERPRISE" || plan === "BUSINESS" ? "text-primary" : "text-green-500"}`} />
                         {f}
                       </li>
                     ))}

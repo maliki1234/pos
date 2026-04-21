@@ -121,7 +121,7 @@ export default function StoresPage() {
 
       {/* Create / Edit form */}
       {(showCreate || editStore) && (
-        <div className="rounded-xl border bg-white dark:bg-slate-800 shadow-sm p-5 space-y-4">
+        <div className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm space-y-4">
           <h2 className="font-semibold">{editStore ? `Edit "${editStore.name}"` : "New Store"}</h2>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
@@ -177,7 +177,7 @@ export default function StoresPage() {
       ) : (
         <div className="space-y-3">
           {stores.map((store) => (
-            <div key={store.id} className="rounded-xl border bg-white dark:bg-slate-800 shadow-sm p-5">
+            <div key={store.id} className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">

@@ -80,7 +80,7 @@ export default function CategoriesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
+          <h1 className="text-3xl font-bold">Categories</h1>
           <p className="text-muted-foreground mt-1">Organize products into categories</p>
         </div>
         <Button onClick={() => setIsDialogOpen(true)} className="gap-2">

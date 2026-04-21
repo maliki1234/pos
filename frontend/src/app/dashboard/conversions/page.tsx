@@ -138,7 +138,7 @@ export default function ConversionsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <h1 className="text-3xl font-bold flex items-center gap-2">
             <ArrowLeftRight className="h-7 w-7" /> Stock Conversions
           </h1>
           <p className="text-muted-foreground mt-1">Break cartons into blocks, blocks into pieces</p>

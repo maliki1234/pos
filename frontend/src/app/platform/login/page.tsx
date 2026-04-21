@@ -42,19 +42,19 @@ export default function PlatformLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
 
       <div className="w-full max-w-sm">
-        <Card className="border-0 shadow-2xl">
-          <CardHeader className="bg-gradient-to-r from-slate-700 to-slate-900 text-white rounded-t-lg text-center">
+        <Card className="border shadow-2xl">
+          <CardHeader className="rounded-t-lg border-b bg-primary text-center text-primary-foreground">
             <div className="flex justify-center mb-2">
-              <Shield className="h-10 w-10 text-blue-400" />
+              <Shield className="h-10 w-10 text-primary-foreground" />
             </div>
             <CardTitle className="text-2xl">Platform Admin</CardTitle>
-            <CardDescription className="text-slate-300">System-wide management portal</CardDescription>
+            <CardDescription className="text-primary-foreground/80">System-wide management portal</CardDescription>
           </CardHeader>
 
           <CardContent className="pt-6">

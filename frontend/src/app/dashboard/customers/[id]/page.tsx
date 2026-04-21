@@ -18,7 +18,7 @@ const tierColors: Record<string, string> = {
 const txTypeColors: Record<string, string> = {
   EARN: "text-green-600",
   REDEEM: "text-red-600",
-  ADJUSTMENT: "text-blue-600",
+  ADJUSTMENT: "text-primary",
   EXPIRE: "text-gray-500",
 };
 
@@ -72,7 +72,7 @@ export default function CustomerDetailPage() {
         <div>
           <h1 className="text-2xl font-bold">{customer.name}</h1>
           <p className="text-muted-foreground text-sm">{customer.email ?? "No email"} · {customer.phone ?? "No phone"}</p>
-          <span className={`mt-2 inline-block px-2 py-0.5 rounded text-xs font-medium border ${customer.customerType === "WHOLESALE" ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-blue-50 text-blue-700 border-blue-200"}`}>
+          <span className={`mt-2 inline-block rounded border px-2 py-0.5 text-xs font-medium ${customer.customerType === "WHOLESALE" ? "bg-secondary text-secondary-foreground border-border" : "bg-primary/10 text-primary border-primary/20"}`}>
             {customer.customerType}
           </span>
         </div>

@@ -22,7 +22,7 @@ export default function OfflinePage() {
           </p>
 
           <Alert className="mt-6 border-blue-200 bg-blue-50">
-            <CheckCircle className="h-4 w-4 text-blue-600" />
+            <CheckCircle className="h-4 w-4 text-primary" />
             <AlertDescription className="text-blue-900">
               <p className="font-semibold">Offline Mode Active</p>
               <ul className="mt-2 text-left text-sm space-y-1">

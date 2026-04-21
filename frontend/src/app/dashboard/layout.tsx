@@ -2,14 +2,35 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useSyncStore } from "@/stores/useSyncStore";
 import { useStockStore } from "@/stores/useStockStore";
 import { useStoreStore } from "@/stores/useStoreStore";
 import { useSubscriptionStore } from "@/stores/useSubscriptionStore";
 import { CurrencySelector } from "@/components/CurrencySelector";
-import { LogOut, Lock, ShieldCheck, X, Languages, ChefHat, Barcode, ArrowLeftRight, Menu } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Barcode,
+  BarChart3,
+  ChefHat,
+  ClipboardList,
+  CreditCard,
+  Languages,
+  LayoutDashboard,
+  Lock,
+  LogOut,
+  Menu,
+  Package,
+  ReceiptText,
+  Settings,
+  ShieldCheck,
+  Store,
+  Tags,
+  UserCog,
+  Users,
+  X,
+} from "lucide-react";
 import { useLangStore } from "@/stores/useLangStore";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -17,6 +38,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { OfflinePinModal } from "@/components/OfflinePinModal";
 import { SetPinModal } from "@/components/SetPinModal";
 import { OfflineStatus } from "@/components/OfflineStatus";
+import { cn } from "@/lib/utils";
 
 interface NavProps {
   children: React.ReactNode;
@@ -24,6 +46,7 @@ interface NavProps {
 
 export default function DashboardLayout({ children }: NavProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, logout, isAuthenticated, isPinLocked, hasPinSet, showReauthBanner, dismissReauthBanner, isLoading } = useAuthStore();
   const { initializeSync } = useSyncStore();
   const [showSetPin, setShowSetPin] = useState(false);
@@ -65,10 +88,52 @@ export default function DashboardLayout({ children }: NavProps) {
   const hasEnterprise = plan === "ENTERPRISE";
 
   const PLAN_COLORS: Record<string, string> = {
-    STARTER: "bg-gray-100 text-gray-600",
-    BUSINESS: "bg-blue-100 text-blue-700",
-    ENTERPRISE: "bg-purple-100 text-purple-700",
+    STARTER: "bg-muted text-muted-foreground",
+    BUSINESS: "bg-primary/10 text-primary",
+    ENTERPRISE: "bg-secondary text-secondary-foreground",
   };
+
+  const NavItem = ({
+    href,
+    icon: Icon,
+    children: label,
+    locked,
+    badge,
+  }: {
+    href: string;
+    icon: React.ComponentType<{ className?: string }>;
+    children: React.ReactNode;
+    locked?: boolean;
+    badge?: React.ReactNode;
+  }) => {
+    const isActive = href === "/dashboard"
+      ? pathname === href
+      : pathname === href || pathname.startsWith(`${href}/`);
+    return (
+      <Link
+        href={href}
+        className={cn(
+          "flex min-h-10 items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+          isActive
+            ? "bg-primary text-primary-foreground shadow-sm"
+            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        )}
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <Icon className="h-4 w-4 shrink-0" />
+          <span className="truncate">{label}</span>
+        </span>
+        {badge ?? (locked ? <Lock className="h-3.5 w-3.5 shrink-0 opacity-70" /> : null)}
+      </Link>
+    );
+  };
+
+  const NavGroup = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div className="space-y-1">
+      <p className="px-3 pt-3 text-[11px] font-semibold uppercase text-muted-foreground">{title}</p>
+      {children}
+    </div>
+  );
 
   return (
     <div className="flex min-h-screen bg-background lg:h-screen">
@@ -88,9 +153,9 @@ export default function DashboardLayout({ children }: NavProps) {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-start justify-between gap-3 px-5 py-5 lg:px-6">
+        <div className="flex items-start justify-between gap-3 border-b px-5 py-5 lg:px-6">
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold text-primary">{user.businessName || "POS System"}</h1>
+            <h1 className="truncate text-xl font-bold text-foreground">{user.businessName || "POS System"}</h1>
             <p className="mt-0.5 truncate text-sm text-muted-foreground">{user.name}</p>
             <div className="mt-1 flex items-center gap-2">
               <span className="text-xs font-medium uppercase text-muted-foreground">{user.role}</span>
@@ -108,170 +173,74 @@ export default function DashboardLayout({ children }: NavProps) {
         </div>
 
         <nav
-          className="flex-1 space-y-1 overflow-y-auto px-4 py-4"
+          className="flex-1 space-y-4 overflow-y-auto px-3 py-4"
           onClick={(event) => {
             if ((event.target as HTMLElement).closest("a")) setSidebarOpen(false);
           }}
         >
           {isCashier && (
-            <>
-              <Link
-                href="/dashboard/cashier"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                Point of Sale
-              </Link>
-              <Link
-                href="/dashboard/transactions"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                My Transactions
-              </Link>
-              <Link
-                href="/dashboard/reconciliation"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                End of Day
-              </Link>
-            </>
+            <NavGroup title="Sales">
+              <NavItem href="/dashboard/cashier" icon={ReceiptText}>Point of Sale</NavItem>
+              <NavItem href="/dashboard/transactions" icon={ClipboardList}>My Transactions</NavItem>
+              <NavItem href="/dashboard/reconciliation" icon={ShieldCheck}>End of Day</NavItem>
+            </NavGroup>
           )}
 
           {isAdminOrManager && (
             <>
-              <Link
-                href="/dashboard/cashier"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                Point of Sale
-              </Link>
-              <Link
-                href="/dashboard/products"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                Products
-              </Link>
-              <Link
-                href="/dashboard/categories"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                Categories
-              </Link>
-              <Link
-                href="/dashboard/recipes"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2"
-              >
-                <ChefHat className="h-4 w-4" /> Recipes
-              </Link>
-              <Link
-                href="/dashboard/barcodes"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2"
-              >
-                <Barcode className="h-4 w-4" /> Barcodes
-              </Link>
-              <Link
-                href="/dashboard/conversions"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2"
-              >
-                <ArrowLeftRight className="h-4 w-4" /> Conversions
-              </Link>
-              <Link
-                href="/dashboard/stock"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors flex items-center justify-between"
-              >
-                <span>Stock</span>
-                {lowStockCount > 0 && (
-                  <span className="ml-2 inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-orange-500 text-white text-xs font-bold">
+              <NavGroup title="Sales">
+                <NavItem href="/dashboard" icon={LayoutDashboard}>Dashboard</NavItem>
+                <NavItem href="/dashboard/cashier" icon={ReceiptText}>Point of Sale</NavItem>
+                <NavItem href="/dashboard/transactions" icon={ClipboardList}>All Transactions</NavItem>
+                <NavItem href="/dashboard/reconciliation" icon={ShieldCheck} locked={!hasEnterprise}>End of Day</NavItem>
+              </NavGroup>
+
+              <NavGroup title="Inventory">
+                <NavItem href="/dashboard/products" icon={Package}>Products</NavItem>
+                <NavItem href="/dashboard/categories" icon={Tags}>Categories</NavItem>
+                <NavItem href="/dashboard/stock" icon={Package} badge={lowStockCount > 0 ? (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-xs font-bold text-white">
                     {lowStockCount}
                   </span>
-                )}
-              </Link>
-              <Link
-                href="/dashboard/customers"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                Customers
-              </Link>
-              <Link
-                href="/dashboard/transactions"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                All Transactions
-              </Link>
-              <Link
-                href="/dashboard/credit"
-                className="flex items-center justify-between rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <span>Credit Ledger</span>
-                {!hasBusiness && <Lock className="h-3 w-3 text-muted-foreground" />}
-              </Link>
-              <Link
-                href="/dashboard/analytics"
-                className="flex items-center justify-between rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <span>Analytics</span>
-                {!hasBusiness && <Lock className="h-3 w-3 text-muted-foreground" />}
-              </Link>
-              <Link
-                href="/dashboard/reconciliation"
-                className="flex items-center justify-between rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <span>End of Day</span>
-                {!hasEnterprise && <Lock className="h-3 w-3 text-muted-foreground" />}
-              </Link>
-              <Link
-                href="/dashboard/reports"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                Reports
-              </Link>
+                ) : null}>Stock</NavItem>
+                <NavItem href="/dashboard/recipes" icon={ChefHat}>Recipes</NavItem>
+                <NavItem href="/dashboard/barcodes" icon={Barcode}>Barcodes</NavItem>
+                <NavItem href="/dashboard/conversions" icon={ArrowLeftRight}>Conversions</NavItem>
+              </NavGroup>
+
+              <NavGroup title="Business">
+                <NavItem href="/dashboard/customers" icon={Users}>Customers</NavItem>
+                <NavItem href="/dashboard/credit" icon={CreditCard} locked={!hasBusiness}>Credit Ledger</NavItem>
+                <NavItem href="/dashboard/analytics" icon={BarChart3} locked={!hasBusiness}>Analytics</NavItem>
+                <NavItem href="/dashboard/reports" icon={ClipboardList}>Reports</NavItem>
+              </NavGroup>
             </>
           )}
 
           {isAdminOrManager && (
-            <>
-              <Link
-                href="/dashboard/stores"
-                className="flex items-center justify-between rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <span>Stores</span>
-                {stores.length > 0 && (
-                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded font-medium text-muted-foreground">
-                    {stores.length}
-                  </span>
-                )}
-              </Link>
-            </>
+            <NavGroup title="Operations">
+              <NavItem href="/dashboard/stores" icon={Store} badge={stores.length > 0 ? (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                  {stores.length}
+                </span>
+              ) : null}>Stores</NavItem>
+            </NavGroup>
           )}
 
           {isAdmin && (
-            <>
-              <Link
-                href="/dashboard/staff"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                Staff
-              </Link>
-              <Link
-                href="/dashboard/settings"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                Settings
-              </Link>
-              <Link
-                href="/dashboard/subscription"
-                className="block rounded-lg px-4 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                Subscription
-              </Link>
-            </>
+            <NavGroup title="Admin">
+              <NavItem href="/dashboard/staff" icon={UserCog}>Staff</NavItem>
+              <NavItem href="/dashboard/settings" icon={Settings}>Settings</NavItem>
+              <NavItem href="/dashboard/subscription" icon={CreditCard}>Subscription</NavItem>
+            </NavGroup>
           )}
         </nav>
 
         {isAdmin && plan === "STARTER" && (
-          <div className="mx-4 mb-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 text-xs">
-            <p className="font-semibold text-blue-700 dark:text-blue-300">Unlock Premium Features</p>
-            <p className="text-blue-600 dark:text-blue-400 mt-0.5">Analytics, credit ledger & loyalty points on BUSINESS plan.</p>
-            <Link href="/dashboard/subscription" className="mt-2 block text-center py-1 rounded bg-blue-600 text-white hover:bg-blue-700 font-medium">
+          <div className="mx-4 mb-3 rounded-md border border-primary/20 bg-primary/10 p-3 text-xs">
+            <p className="font-semibold text-primary">Unlock Premium Features</p>
+            <p className="mt-0.5 text-muted-foreground">Analytics, credit ledger & loyalty points on BUSINESS plan.</p>
+            <Link href="/dashboard/subscription" className="mt-2 block rounded bg-primary py-1 text-center font-medium text-primary-foreground hover:bg-primary/90">
               Upgrade Plan
             </Link>
           </div>

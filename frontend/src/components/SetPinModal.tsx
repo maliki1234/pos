@@ -51,7 +51,7 @@ export function SetPinModal({ onClose }: Props) {
               value={pin}
               onChange={e => { setPinValue(e.target.value.replace(/\D/g, "").slice(0, 4)); setError(""); }}
               placeholder="• • • •"
-              className="w-full h-10 border rounded-lg px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary tracking-widest text-center text-lg"
+              className="w-full h-10 border rounded-lg px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primaryst text-center text-lg"
             />
           </div>
           <div>
@@ -63,7 +63,7 @@ export function SetPinModal({ onClose }: Props) {
               value={confirm}
               onChange={e => { setConfirm(e.target.value.replace(/\D/g, "").slice(0, 4)); setError(""); }}
               placeholder="• • • •"
-              className="w-full h-10 border rounded-lg px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary tracking-widest text-center text-lg"
+              className="w-full h-10 border rounded-lg px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primaryst text-center text-lg"
             />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}

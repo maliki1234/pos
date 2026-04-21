@@ -36,7 +36,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
+        <h1 className="text-3xl font-bold">Welcome, {user?.name}!</h1>
         <p className="text-muted-foreground">
           {user?.role === "CASHIER"
             ? "Start processing transactions"
@@ -49,14 +49,14 @@ export default function DashboardPage() {
           title="Today's Revenue"
           value={dashboardStats ? fmt(dashboardStats.todayRevenue) : "—"}
           icon={DollarSign}
-          color="text-blue-600"
+          color="text-primary"
           sub="Real-time"
         />
         <StatCard
           title="Transactions"
           value={dashboardStats ? (dashboardStats.transactionCount ?? 0).toLocaleString() : "—"}
           icon={ShoppingCart}
-          color="text-indigo-600"
+          color="text-primary"
           sub="Today"
         />
         <StatCard

@@ -208,7 +208,7 @@ export default function ReportsPage() {
       {dashboardStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Today's Revenue",    value: fmt(dashboardStats.todayRevenue),            icon: DollarSign,  color: "text-blue-600" },
+            { label: "Today's Revenue",    value: fmt(dashboardStats.todayRevenue),            icon: DollarSign,  color: "text-primary" },
             { label: "Transactions Today", value: (dashboardStats.transactionCount ?? 0).toLocaleString(), icon: ShoppingCart, color: "text-indigo-600" },
             { label: "Avg. Order Value",   value: fmt(dashboardStats.avgOrder ?? 0),            icon: TrendingUp,  color: "text-green-600" },
             { label: "Low Stock Items",    value: (dashboardStats.lowStockCount ?? 0).toLocaleString(), icon: AlertTriangle, color: dashboardStats.lowStockCount > 0 ? "text-orange-500" : "text-muted-foreground" },

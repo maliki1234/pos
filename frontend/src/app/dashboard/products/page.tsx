@@ -149,7 +149,7 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Products</h1>
+          <h1 className="text-3xl font-bold">Products</h1>
           <p className="text-muted-foreground">Manage your product catalog</p>
         </div>
         {canManage && (
@@ -218,7 +218,7 @@ export default function ProductsPage() {
                 </div>
                 {/* Hierarchy fields */}
                 <div className="md:col-span-2 border-t pt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Unit Hierarchy (Carton → Block → Piece)</p>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground mb-3">Unit Hierarchy (Carton → Block → Piece)</p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="text-sm font-medium block mb-1">Unit Level</label>

@@ -51,17 +51,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
       {/* Theme Toggle */}
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
 
       <div className="w-full max-w-md">
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
+        <Card className="border shadow-lg">
+          <CardHeader className="rounded-t-lg border-b bg-primary text-primary-foreground">
             <CardTitle className="text-3xl">POS System</CardTitle>
-            <CardDescription className="text-blue-100">Offline-First Point of Sale</CardDescription>
+            <CardDescription className="text-primary-foreground/80">Offline-First Point of Sale</CardDescription>
           </CardHeader>
 
           <CardContent className="pt-8">
@@ -108,7 +108,7 @@ export default function LoginPage() {
 
             <div className="mt-6 border-t pt-4 text-center text-sm text-muted-foreground">
               New to POS System?{" "}
-              <Link href="/register" className="text-blue-600 hover:underline font-medium">
+              <Link href="/register" className="font-medium text-primary hover:underline">
                 Register your business
               </Link>
             </div>

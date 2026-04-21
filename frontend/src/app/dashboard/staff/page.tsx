@@ -16,8 +16,8 @@ const PLAN_USER_LIMITS: Record<string, number | null> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  ADMIN:   "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  MANAGER: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  ADMIN:   "bg-secondary text-secondary-foreground",
+  MANAGER: "bg-primary/10 text-primary",
   CASHIER: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
 
@@ -158,7 +158,7 @@ export default function StaffPage() {
 
       {/* Add staff form */}
       {showAdd && (
-        <div className="rounded-xl border bg-white dark:bg-slate-800 shadow-sm p-5 space-y-4">
+        <div className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm space-y-4">
           <h2 className="font-semibold">Add Staff Member</h2>
           <form onSubmit={handleAdd} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
@@ -213,7 +213,7 @@ export default function StaffPage() {
       {/* Assign to store dialog */}
       {assigningUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+          <div className="w-full max-w-sm space-y-4 rounded-lg bg-card p-6 text-card-foreground shadow-2xl">
             <h2 className="font-semibold">Assign {assigningUser.name} to Store</h2>
             <select
               value={assignStoreId}
@@ -238,7 +238,7 @@ export default function StaffPage() {
       {loading ? (
         <div className="text-center text-muted-foreground py-12 text-sm">Loading staff…</div>
       ) : (
-        <div className="rounded-xl border bg-white dark:bg-slate-800 shadow-sm divide-y">
+        <div className="rounded-lg border bg-card text-card-foreground shadow-sm divide-y">
           {staff.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground text-sm">No staff members yet.</div>
           ) : staff.map(s => (

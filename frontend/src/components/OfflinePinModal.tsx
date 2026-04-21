@@ -54,7 +54,7 @@ export function OfflinePinModal() {
           <div className="h-14 w-14 rounded-full bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center">
             <WifiOff className="h-7 w-7 text-orange-500" />
           </div>
-          <h2 className="text-xl font-bold tracking-tight">You&apos;ve been offline</h2>
+          <h2 className="text-xl font-bold">You&apos;ve been offline</h2>
           <p className="text-sm text-muted-foreground">
             Welcome back, <span className="font-medium text-foreground">{user?.name}</span>.
             Enter your PIN to continue.
