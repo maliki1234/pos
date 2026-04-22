@@ -1,12 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { calculateStockProfitPreview, type StockProfitLine } from '@/lib/stockProfit';
+
+interface StockProductOption {
+  id: number;
+  name: string;
+  retailPrice?: number;
+  wholesalePrice?: number;
+}
 
 interface AddStockDialogProps {
   open: boolean;
@@ -21,7 +29,51 @@ interface AddStockDialogProps {
     notes?: string;
   }) => Promise<void>;
   isLoading?: boolean;
-  products?: Array<{ id: number; name: string }>;
+  products?: StockProductOption[];
+}
+
+function formatMoney(value: number): string {
+  return Number(value || 0).toLocaleString();
+}
+
+function ProfitLineCard({ title, line }: { title: string; line?: StockProfitLine }) {
+  if (!line) {
+    return (
+      <div className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
+        {title} selling price is not set.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs">
+      <div className="font-medium">{title}</div>
+      <div className="mt-1 space-y-1 text-muted-foreground">
+        <div className="flex justify-between gap-2">
+          <span>Selling price</span>
+          <span className="font-medium text-foreground">{formatMoney(line.sellingPrice)}</span>
+        </div>
+        <div className="flex justify-between gap-2">
+          <span>Profit per unit</span>
+          <span className={line.isLoss ? 'font-semibold text-red-600' : 'font-semibold text-green-700'}>
+            {formatMoney(line.profitPerUnit)}
+          </span>
+        </div>
+        <div className="flex justify-between gap-2">
+          <span>Batch profit</span>
+          <span className={line.isLoss ? 'font-semibold text-red-600' : 'font-semibold text-green-700'}>
+            {formatMoney(line.totalProfit)}
+          </span>
+        </div>
+        <div className="flex justify-between gap-2">
+          <span>Margin</span>
+          <span className={line.isLoss ? 'font-semibold text-red-600' : 'font-semibold text-green-700'}>
+            {line.marginPercent}%
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -49,6 +101,32 @@ export function AddStockDialog({
   });
   const [error, setError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const selectedProduct = useMemo(() => {
+    const selectedId = Number(formData.productId || initialProductId || 0);
+    return products.find((product) => product.id === selectedId);
+  }, [formData.productId, initialProductId, products]);
+  const quantity = Number(formData.quantity || 0);
+  const unitCost = Number(formData.unitCost || 0);
+  const profitPreview = selectedProduct && quantity > 0 && unitCost > 0
+    ? calculateStockProfitPreview({
+        quantity,
+        unitCost,
+        retailPrice: selectedProduct.retailPrice,
+        wholesalePrice: selectedProduct.wholesalePrice,
+      })
+    : null;
+
+  useEffect(() => {
+    if (!open) return;
+    setError('');
+    setFormData({
+      productId: initialProductId?.toString() || '',
+      quantity: '',
+      unitCost: '',
+      expiryDate: '',
+      notes: '',
+    });
+  }, [initialProductId, open]);
 
   /**
    * Handles the form submission for adding new stock.
@@ -75,6 +153,19 @@ export function AddStockDialog({
       // Validate unit cost is provided for profit reports
       if (!formData.unitCost || Number(formData.unitCost) <= 0) {
         throw new Error('Unit cost must be greater than 0');
+      }
+      if (!selectedProduct) {
+        throw new Error('Product selling prices could not be loaded. Please reload products and try again.');
+      }
+
+      const profitValidation = calculateStockProfitPreview({
+        quantity: Number(formData.quantity),
+        unitCost: Number(formData.unitCost),
+        retailPrice: selectedProduct.retailPrice,
+        wholesalePrice: selectedProduct.wholesalePrice,
+      });
+      if (profitValidation.hasLoss) {
+        throw new Error(profitValidation.lossMessages.join(' '));
       }
 
       // Parse and validate expiry date if provided
@@ -115,7 +206,7 @@ export function AddStockDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>Add Stock</DialogTitle>
           <DialogDescription>
@@ -185,6 +276,28 @@ export function AddStockDialog({
             <p className="text-xs text-muted-foreground">Used for product cost and profit reports.</p>
           </div>
 
+          {profitPreview && (
+            <div
+              className={`rounded-md border p-3 text-sm ${
+                profitPreview.hasLoss
+                  ? 'border-red-200 bg-red-50 text-red-950 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-200'
+                  : 'border-green-200 bg-green-50 text-green-950 dark:border-green-900/60 dark:bg-green-950/20 dark:text-green-200'
+              }`}
+              aria-live="polite"
+            >
+              <div className="mb-2 font-semibold">Profit Preview</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ProfitLineCard title="Retail" line={profitPreview.retail} />
+                <ProfitLineCard title="Wholesale" line={profitPreview.wholesale} />
+              </div>
+              {profitPreview.lossMessages.length > 0 && (
+                <div className="mt-2 rounded-md border border-red-200 bg-red-100 p-2 text-xs font-medium text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+                  {profitPreview.lossMessages.join(' ')}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="expiryDate">Expiry Date (Optional)</Label>
             <Input
@@ -216,7 +329,7 @@ export function AddStockDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || isLoading}>
+            <Button type="submit" disabled={isSubmitting || isLoading || Boolean(profitPreview?.hasLoss)}>
               {isSubmitting || isLoading ? 'Adding...' : 'Add Stock'}
             </Button>
           </div>

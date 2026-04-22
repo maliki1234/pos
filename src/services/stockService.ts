@@ -2,6 +2,7 @@ import { Prisma, StockBatch } from '@prisma/client';
 import { NotFoundError, ValidationError, InsufficientStockError } from '../utils/errors.js';
 import logger from '../utils/logger.js';
 import { prisma } from '../utils/prisma.js';
+import { getStockProfitValidation } from './stockProfitValidation.js';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -31,8 +32,16 @@ export class StockService {
     expiryDate?: Date,
     notes?: string
   ) {
-    const product = await prisma.product.findFirst({ where: { id: productId, businessId } });
+    const product = await prisma.product.findFirst({
+      where: { id: productId, businessId },
+      include: { prices: { where: { isActive: true } } },
+    });
     if (!product) throw new NotFoundError('Product');
+
+    const profitValidation = getStockProfitValidation({ unitCost, prices: product.prices });
+    if (profitValidation.hasLoss) {
+      throw new ValidationError(profitValidation.lossMessages.join(' '));
+    }
 
     const batch = await prisma.stockBatch.create({
       data: { productId, quantity, quantityUsed: 0, unitCost, expiryDate, notes, isActive: true },

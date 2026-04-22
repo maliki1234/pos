@@ -42,6 +42,29 @@ interface StockView {
   batches: any[];
 }
 
+function toPriceNumber(value: unknown): number {
+  const price = Number(value);
+  return Number.isFinite(price) ? price : 0;
+}
+
+function getStockProductOption(product: any) {
+  const retailPrice = toPriceNumber(
+    product.retail?.unitPrice ?? product.prices?.find((price: any) => price.customerType === "RETAIL")?.unitPrice
+  );
+  const wholesalePrice = toPriceNumber(
+    product.wholesale?.unitPrice ??
+      product.prices?.find((price: any) => price.customerType === "WHOLESALE")?.unitPrice ??
+      retailPrice
+  );
+
+  return {
+    id: product.id,
+    name: product.name,
+    retailPrice,
+    wholesalePrice,
+  };
+}
+
 /**
  * StockPage Component
  * Main page for managing product inventory and stock batches.
@@ -502,7 +525,7 @@ export default function StockPage() {
         productName={
           selectedProductId ? stockView.find((v) => v.productId === selectedProductId)?.productName : undefined
         }
-        products={products.map((p: any) => ({ id: p.id, name: p.name }))}
+        products={products.map(getStockProductOption)}
         onSubmit={handleAddStock}
         isLoading={isSubmitting}
       />
