@@ -4,8 +4,12 @@ import { calculateAvailableQuantity, isOfflineFallbackError } from "@/lib/syncHe
 import { useAuthStore } from "./useAuthStore";
 
 export function transformApiProduct(p: any): StoredProduct {
-  const retailPrice = p.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.unitPrice || 0;
-  const wholesalePrice = p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.unitPrice || retailPrice;
+  const retail = p.prices?.find((pr: any) => pr.customerType === 'RETAIL');
+  const wholesale = p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE');
+  const retailPrice = retail?.unitPrice || 0;
+  const wholesalePrice = wholesale?.unitPrice || retailPrice;
+  const retailCostPrice = retail?.costPrice || 0;
+  const wholesaleCostPrice = wholesale?.costPrice || retailCostPrice;
   const totalQuantity = (p.stock || []).reduce((sum: number, batch: any) => {
     return sum + (batch.quantity - batch.quantityUsed);
   }, 0);
@@ -19,11 +23,13 @@ export function transformApiProduct(p: any): StoredProduct {
     isActive: p.isActive,
     retail: {
       unitPrice: retailPrice,
-      discount: p.prices?.find((pr: any) => pr.customerType === 'RETAIL')?.discount || 0,
+      costPrice: retailCostPrice,
+      discount: retail?.discount || 0,
     },
     wholesale: {
       unitPrice: wholesalePrice,
-      discount: p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE')?.discount || 0,
+      costPrice: wholesaleCostPrice,
+      discount: wholesale?.discount || 0,
     },
     stock: {
       quantity: totalQuantity,
@@ -331,10 +337,12 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         isActive: newProduct.isActive,
         retail: {
           unitPrice: data.retailPrice,
+          costPrice: data.costPrice,
           discount: 0,
         },
         wholesale: {
           unitPrice: data.wholesalePrice,
+          costPrice: data.costPrice,
           discount: 0,
         },
         stock: { quantity: 0, serverQuantity: 0 },
@@ -363,10 +371,12 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         isActive: true,
         retail: {
           unitPrice: data.retailPrice,
+          costPrice: data.costPrice,
           discount: 0,
         },
         wholesale: {
           unitPrice: data.wholesalePrice,
+          costPrice: data.costPrice,
           discount: 0,
         },
         stock: { quantity: 0, serverQuantity: 0 },

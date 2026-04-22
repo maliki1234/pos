@@ -156,7 +156,7 @@ export default function DashboardLayout({ children }: NavProps) {
       >
         <div className="flex items-start justify-between gap-3 border-b px-5 py-5 lg:px-6">
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold text-foreground">{user.businessName || "POS System"}</h1>
+            <h1 className="truncate text-xl font-bold text-foreground">{user.businessName || "Logan POS"}</h1>
             <p className="mt-0.5 truncate text-sm text-muted-foreground">{user.name}</p>
             <div className="mt-1 flex items-center gap-2">
               <span className="text-xs font-medium uppercase text-muted-foreground">{user.role}</span>

@@ -38,7 +38,7 @@ app.use(morgan('combined'));
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
-    message: 'POS System is running',
+    message: 'Logan POS is running',
     timestamp: new Date().toISOString(),
   });
 });
@@ -71,7 +71,7 @@ app.use(errorHandler);
 // Start server
 const port = config.port;
 app.listen(port, () => {
-  logger.info(`POS System server running on port ${port}`);
+  logger.info(`Logan POS server running on port ${port}`);
   logger.info(`Environment: ${config.env}`);
 });
 

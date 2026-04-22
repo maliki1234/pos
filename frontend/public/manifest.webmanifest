@@ -1,7 +1,7 @@
 {
-  "name": "POS System",
-  "short_name": "POS",
-  "description": "Offline-first point of sale system",
+  "name": "Logan POS",
+  "short_name": "Logan POS",
+  "description": "Offline-first point of sale system by Logan Tech",
   "start_url": "/dashboard/cashier",
   "scope": "/",
   "display": "standalone",

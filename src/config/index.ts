@@ -19,7 +19,7 @@ const config = {
     origin: process.env.CORS_ORIGIN ?? '*',
   },
   app: {
-    name: 'POS System',
+    name: 'Logan POS',
     version: '1.0.0',
   },
 };

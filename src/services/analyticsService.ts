@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+import { mapProfitRow, type ProfitSourceRow } from './analyticsProfit.js';
 import { prisma } from '../utils/prisma.js';
 
 export class AnalyticsService {
@@ -121,8 +123,6 @@ export class AnalyticsService {
   }
 
   async getProfitMargin(businessId: string, startDate?: Date, endDate?: Date) {
-    type RawRow = { productId: number; name: string; totalRevenue: bigint; totalCost: bigint };
-
     const dateFilter =
       startDate && endDate
         ? Prisma.sql`AND t."createdAt" >= ${startDate} AND t."createdAt" <= ${endDate}`
@@ -136,39 +136,38 @@ export class AnalyticsService {
       SELECT
         ti."productId",
         p.name,
-        SUM(ti."lineTotal")::bigint                       AS "totalRevenue",
-        SUM(pp."costPrice" * ti.quantity)::bigint         AS "totalCost"
+        SUM(ti.quantity)                                  AS "quantitySold",
+        SUM(ti."lineTotal")                               AS "totalRevenue",
+        sc."stockAverageCost"                             AS "stockAverageCost",
+        pc."priceCost"                                    AS "priceCost"
       FROM transaction_items ti
       JOIN products p          ON p.id  = ti."productId"
       JOIN transactions t      ON t.id  = ti."transactionId"
-      LEFT JOIN LATERAL (
-        SELECT "costPrice"
-        FROM product_prices pp2
-        WHERE pp2."productId" = ti."productId"
-          AND pp2."isActive" = true
-        ORDER BY pp2."minQuantity" DESC
-        LIMIT 1
-      ) pp ON true
+      LEFT JOIN (
+        SELECT
+          "productId",
+          SUM("unitCost" * quantity)::numeric / NULLIF(SUM(quantity), 0) AS "stockAverageCost"
+        FROM stock_batches
+        WHERE quantity > 0
+          AND "unitCost" > 0
+        GROUP BY "productId"
+      ) sc ON sc."productId" = ti."productId"
+      LEFT JOIN (
+        SELECT
+          "productId",
+          MIN("costPrice") AS "priceCost"
+        FROM product_prices
+        WHERE "isActive" = true
+        GROUP BY "productId"
+      ) pc ON pc."productId" = ti."productId"
       WHERE t."businessId" = ${businessId}
         AND t."isVoided" = false AND t."transactionType" = 'SALE'
       ${dateFilter}
-      GROUP BY ti."productId", p.name
+      GROUP BY ti."productId", p.name, sc."stockAverageCost", pc."priceCost"
       ORDER BY "totalRevenue" DESC
     `;
 
-    return rows.map((r) => {
-      const revenue = Number(r.totalRevenue);
-      const cost = Number(r.totalCost ?? 0);
-      const profit = revenue - cost;
-      return {
-        productId: r.productId,
-        name: r.name,
-        revenue,
-        cost,
-        profit,
-        marginPct: revenue > 0 ? Math.round((profit / revenue) * 100 * 10) / 10 : 0,
-      };
-    });
+    return rows.map(mapProfitRow);
   }
 
   async getProfitSummary(businessId: string, startDate?: Date, endDate?: Date) {
@@ -241,5 +240,5 @@ export class AnalyticsService {
   }
 }
 
-import { Prisma } from '@prisma/client';
+type RawRow = ProfitSourceRow;
 export const analyticsService = new AnalyticsService();

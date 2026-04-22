@@ -298,7 +298,7 @@ export default function SubscriptionPage() {
                     </div>
                   ) : (
                     <button
-                      onClick={() => plan === "ENTERPRISE" ? alert("Contact sales@yourpos.app for Enterprise") : handleChangePlan(plan)}
+                      onClick={() => plan === "ENTERPRISE" ? alert("Contact Logan Tech for Enterprise") : handleChangePlan(plan)}
                       disabled={saving}
                       className={`w-full py-2 rounded-lg text-sm font-semibold border transition-colors ${plan === "BUSINESS" ? "bg-primary text-primary-foreground hover:bg-primary/90" : isDowngrade ? "border-orange-400 text-orange-700 hover:bg-orange-50" : "border-primary text-primary hover:bg-primary/5"}`}
                     >

@@ -43,7 +43,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
   const { settings } = useSettingsStore();
   const [waPhone, setWaPhone] = useState(customerPhone ?? "");
 
-  const businessName = settings?.name || "POS System";
+  const businessName = settings?.name || "Logan POS";
   const businessPhone = settings?.phone || "";
 
   const fmt = (n: number) =>

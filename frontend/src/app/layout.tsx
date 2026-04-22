@@ -6,14 +6,14 @@ import { Providers } from "@/components/Providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "POS System - Offline First",
-  description: "Professional Point of Sale System with Offline-First Architecture",
+  title: "Logan POS - Offline First",
+  description: "Professional point of sale system by Logan Tech",
   manifest: "/manifest.webmanifest",
-  applicationName: "POS System",
+  applicationName: "Logan POS",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "POS System",
+    title: "Logan POS",
   },
 };
 

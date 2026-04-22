@@ -94,7 +94,7 @@ export default function RegisterPage() {
           <CardHeader className="rounded-t-lg border-b bg-primary text-primary-foreground">
             <CardTitle className="text-2xl">Register Your Business</CardTitle>
             <CardDescription className="text-primary-foreground/80">
-              Create your POS account — free STARTER plan, upgrade anytime
+              Create your Logan POS account - free STARTER plan, upgrade anytime
             </CardDescription>
           </CardHeader>
 

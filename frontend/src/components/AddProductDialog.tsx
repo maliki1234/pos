@@ -40,8 +40,22 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.categoryId || !formData.retailPrice) {
+    if (!formData.name || !formData.categoryId || !formData.retailPrice || !formData.costPrice) {
       alert("Please fill in all required fields");
+      return;
+    }
+
+    const retailPrice = Number(formData.retailPrice);
+    const wholesalePrice = Number(formData.wholesalePrice) || retailPrice;
+    const costPrice = Number(formData.costPrice);
+
+    if (costPrice <= 0) {
+      alert("Cost price must be greater than 0");
+      return;
+    }
+
+    if (costPrice > retailPrice || costPrice > wholesalePrice) {
+      alert("Cost price cannot be higher than selling price");
       return;
     }
 
@@ -49,9 +63,9 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
       name: formData.name,
       categoryId: formData.categoryId,
       barcode: formData.barcode || undefined,
-      retailPrice: Number(formData.retailPrice),
-      wholesalePrice: Number(formData.wholesalePrice) || Number(formData.retailPrice),
-      costPrice: Number(formData.costPrice) || Number(formData.retailPrice),
+      retailPrice,
+      wholesalePrice,
+      costPrice,
       reorderPoint: Number(formData.reorderPoint) || 10,
     });
 

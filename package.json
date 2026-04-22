@@ -1,7 +1,7 @@
 {
-  "name": "pos-system",
+  "name": "logan-pos-api",
   "version": "1.0.0",
-  "description": "Clean, scalable POS system with wholesale and retail logic",
+  "description": "Logan POS backend API with wholesale, retail, inventory, and offline sync logic",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {

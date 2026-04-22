@@ -60,8 +60,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <Card className="border shadow-lg">
           <CardHeader className="rounded-t-lg border-b bg-primary text-primary-foreground">
-            <CardTitle className="text-3xl">POS System</CardTitle>
-            <CardDescription className="text-primary-foreground/80">Offline-First Point of Sale</CardDescription>
+            <CardTitle className="text-3xl">Logan POS</CardTitle>
+            <CardDescription className="text-primary-foreground/80">Offline-first point of sale by Logan Tech</CardDescription>
           </CardHeader>
 
           <CardContent className="pt-8">
@@ -73,7 +73,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@pos.com"
+                  placeholder="admin@loganpos.com"
                   disabled={isLoading}
                 />
               </div>
@@ -107,7 +107,7 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-6 border-t pt-4 text-center text-sm text-muted-foreground">
-              New to POS System?{" "}
+              New to Logan POS?{" "}
               <Link href="/register" className="font-medium text-primary hover:underline">
                 Register your business
               </Link>

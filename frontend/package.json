@@ -1,7 +1,7 @@
 {
-  "name": "pos-frontend",
+  "name": "logan-pos-frontend",
   "version": "1.0.0",
-  "description": "Offline-first POS frontend with Next.js",
+  "description": "Logan POS offline-first frontend with Next.js",
   "private": true,
   "type": "module",
   "scripts": {
