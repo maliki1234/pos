@@ -14,6 +14,7 @@ model Business {
   name      String
   email     String?  @unique
   phone     String?
+  whatsappPhone String?
   address   String?
   country   String   @default("KE")
   currency  String   @default("KES")

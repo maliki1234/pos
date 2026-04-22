@@ -9,6 +9,7 @@ export interface BusinessSettings {
   name: string;
   email: string | null;
   phone: string | null;
+  whatsappPhone: string | null;
   address: string | null;
   country: string;
   currency: string;

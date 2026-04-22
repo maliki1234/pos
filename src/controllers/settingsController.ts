@@ -8,6 +8,7 @@ const updateSettingsSchema = Joi.object({
   name:       Joi.string().optional(),
   email:      Joi.string().email().optional().allow('', null),
   phone:      Joi.string().optional().allow('', null),
+  whatsappPhone: Joi.string().optional().allow('', null),
   address:    Joi.string().optional().allow('', null),
   country:    Joi.string().optional(),
   currency:   Joi.string().optional(),
@@ -35,7 +36,7 @@ export const getSettings = async (req: Request, res: Response, next: NextFunctio
     const business = await prisma.business.findUnique({
       where: { id: req.user!.businessId },
       select: {
-        id: true, name: true, email: true, phone: true, address: true,
+        id: true, name: true, email: true, phone: true, whatsappPhone: true, address: true,
         country: true, currency: true,
         etimsEnabled: true, etimsPin: true, etimsBhfId: true,
         mpesaEnabled: true, mpesaShortcode: true, mpesaCallbackUrl: true,

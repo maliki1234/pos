@@ -14,7 +14,7 @@ export default function SettingsPage() {
 
   // Form state
   const [form, setForm] = useState({
-    name: "", email: "", phone: "", address: "", country: "TZ", currency: "TZS",
+    name: "", email: "", phone: "", whatsappPhone: "", address: "", country: "TZ", currency: "TZS",
     etimsEnabled: false, etimsPin: "", etimsBhfId: "",
     mpesaEnabled: false, mpesaShortcode: "", mpesaConsumerKey: "", mpesaConsumerSecret: "",
     mpesaPasskey: "", mpesaCallbackUrl: "",
@@ -31,6 +31,7 @@ export default function SettingsPage() {
         name:            settings.name ?? "",
         email:           settings.email ?? "",
         phone:           settings.phone ?? "",
+        whatsappPhone:   settings.whatsappPhone ?? "",
         address:         settings.address ?? "",
         country:         settings.country ?? "KE",
         currency:        settings.currency ?? "KES",
@@ -84,6 +85,7 @@ export default function SettingsPage() {
           <Field label="Business Name" value={form.name} onChange={v => set("name", v)} />
           <Field label="Email" value={form.email} onChange={v => set("email", v)} />
           <Field label="Phone" value={form.phone} onChange={v => set("phone", v)} />
+          <Field label="Business WhatsApp Number" value={form.whatsappPhone} onChange={v => set("whatsappPhone", v)} placeholder="+255712345678" />
           <Field label="Country" value={form.country} onChange={v => set("country", v)} />
           <Field label="Currency Code" value={form.currency} onChange={v => set("currency", v)} placeholder="e.g. KES" />
           <Field label="Address" value={form.address} onChange={v => set("address", v)} />

@@ -6,6 +6,7 @@ import { Printer, Download, MessageCircle, X } from "lucide-react";
 import { useCurrencyStore } from "@/stores/useCurrencyStore";
 import { useLangStore } from "@/stores/useLangStore";
 import { useSettingsStore } from "@/stores/useSettingsStore";
+import { getReceiptBusinessContact } from "@/lib/receiptContact";
 
 interface ReceiptItem {
   productId: number;
@@ -44,7 +45,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
   const [waPhone, setWaPhone] = useState(customerPhone ?? "");
 
   const businessName = settings?.name || "Logan POS";
-  const businessPhone = settings?.phone || "";
+  const businessPhone = getReceiptBusinessContact(settings);
 
   const fmt = (n: number) =>
     `${currency.symbol}${Number(n).toLocaleString("en-KE", {
