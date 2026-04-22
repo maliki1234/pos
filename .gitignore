@@ -36,3 +36,8 @@ Thumbs.db
 # Misc
 *.pem
 *.key
+
+# Marketing asset scratch output
+marketing/_build/node_modules/
+marketing/_build/previews/
+marketing/_build/deck-inspect.json
