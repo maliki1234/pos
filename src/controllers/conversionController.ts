@@ -117,12 +117,6 @@ export const convertStock = async (req: Request, res: Response, next: NextFuncti
         },
       });
 
-      // Update child cost price for profit tracking
-      await tx.productPrice.updateMany({
-        where: { productId: value.toProductId },
-        data:  { costPrice: childCostPerUnit.toString() },
-      });
-
       // Record conversion
       return tx.stockConversion.create({
         data: {

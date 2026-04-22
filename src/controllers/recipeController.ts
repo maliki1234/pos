@@ -211,12 +211,6 @@ export const runProduction = async (req: Request, res: Response, next: NextFunct
       },
     });
 
-    // ── Update cost price on product ──────────────────────────────────────────
-    await prisma.productPrice.updateMany({
-      where: { productId: recipe.productId },
-      data: { costPrice: costPerUnit },
-    });
-
     // ── Record production run ────────────────────────────────────────────────
     const run = await prisma.productionRun.create({
       data: {

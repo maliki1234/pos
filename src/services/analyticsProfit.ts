@@ -6,7 +6,7 @@ export interface ProfitSourceRow {
   quantitySold: NumericValue;
   totalRevenue: NumericValue;
   stockAverageCost: NumericValue;
-  priceCost: NumericValue;
+  priceCost?: NumericValue;
 }
 
 function toNumber(value: NumericValue) {
@@ -23,7 +23,7 @@ export function mapProfitRow(row: ProfitSourceRow) {
   const quantitySold = toNumber(row.quantitySold);
   const unitCost = row.stockAverageCost !== null && row.stockAverageCost !== undefined
     ? toNumber(row.stockAverageCost)
-    : toNumber(row.priceCost);
+    : 0;
   const cost = roundMoney(unitCost * quantitySold);
   const profit = roundMoney(revenue - cost);
 

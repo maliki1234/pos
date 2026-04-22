@@ -30,7 +30,7 @@ const updateProductSchema = Joi.object({
 const createPriceSchema = Joi.object({
   customerType: Joi.string().valid('RETAIL', 'WHOLESALE').required(),
   unitPrice: Joi.number().positive().required(),
-  costPrice: Joi.number().positive().required(),
+  costPrice: Joi.number().min(0).default(0),
   minQuantity: Joi.number().integer().min(1).optional(),
   discount: Joi.number().min(0).max(100).optional(),
 });
@@ -62,7 +62,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
             create: value.prices.map((p: any) => ({
               customerType: p.customerType,
               unitPrice: p.unitPrice,
-              costPrice: p.costPrice ?? p.unitPrice,
+              costPrice: p.costPrice ?? 0,
               minQuantity: p.minQuantity ?? 1,
               discount: p.discount ?? 0,
             })),
@@ -195,7 +195,7 @@ export const setProductPrice = async (req: Request, res: Response, next: NextFun
       product.id,
       value.customerType as CustomerType,
       value.unitPrice,
-      value.costPrice,
+      value.costPrice ?? 0,
       value.minQuantity || 1,
       value.discount || 0
     );

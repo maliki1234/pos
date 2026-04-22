@@ -32,15 +32,19 @@ export class PriceService {
     productId: number,
     customerType: CustomerType,
     unitPrice: number,
-    costPrice: number,
+    costPrice: number = 0,
     minQuantity: number = 1,
     discount: number = 0
   ) {
-    if (unitPrice <= 0 || costPrice <= 0) {
-      throw new ValidationError('Prices must be greater than 0');
+    if (unitPrice <= 0) {
+      throw new ValidationError('Unit price must be greater than 0');
     }
 
-    if (unitPrice < costPrice) {
+    if (costPrice < 0) {
+      throw new ValidationError('Cost price cannot be negative');
+    }
+
+    if (costPrice > 0 && unitPrice < costPrice) {
       throw new ValidationError('Unit price cannot be less than cost price');
     }
 

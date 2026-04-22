@@ -7,7 +7,7 @@ import logger from '../utils/logger.js';
 const addStockBatchSchema = Joi.object({
   productId: Joi.number().required(),
   quantity: Joi.number().integer().positive().required(),
-  unitCost: Joi.number().min(0).required(),
+  unitCost: Joi.number().positive().required(),
   expiryDate: Joi.date().optional(),
   notes: Joi.string().allow('').optional(),
   isActive: Joi.boolean().optional(),

@@ -14,7 +14,6 @@ interface AddProductDialogProps {
     barcode?: string;
     retailPrice: number;
     wholesalePrice: number;
-    costPrice: number;
     reorderPoint: number;
   }) => Promise<void>;
   isLoading?: boolean;
@@ -33,31 +32,19 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
     barcode: "",
     retailPrice: "",
     wholesalePrice: "",
-    costPrice: "",
     reorderPoint: "10",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.categoryId || !formData.retailPrice || !formData.costPrice) {
+    if (!formData.name || !formData.categoryId || !formData.retailPrice) {
       alert("Please fill in all required fields");
       return;
     }
 
     const retailPrice = Number(formData.retailPrice);
     const wholesalePrice = Number(formData.wholesalePrice) || retailPrice;
-    const costPrice = Number(formData.costPrice);
-
-    if (costPrice <= 0) {
-      alert("Cost price must be greater than 0");
-      return;
-    }
-
-    if (costPrice > retailPrice || costPrice > wholesalePrice) {
-      alert("Cost price cannot be higher than selling price");
-      return;
-    }
 
     await onSubmit({
       name: formData.name,
@@ -65,7 +52,6 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
       barcode: formData.barcode || undefined,
       retailPrice,
       wholesalePrice,
-      costPrice,
       reorderPoint: Number(formData.reorderPoint) || 10,
     });
 
@@ -75,7 +61,6 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
       barcode: "",
       retailPrice: "",
       wholesalePrice: "",
-      costPrice: "",
       reorderPoint: "10",
     });
     onOpenChange(false);
@@ -158,20 +143,6 @@ export const AddProductDialog: React.FC<AddProductDialogProps> = ({
                 disabled={isLoading}
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="costPrice">Cost Price (buying price) *</Label>
-            <Input
-              id="costPrice"
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              value={formData.costPrice}
-              onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
-              disabled={isLoading}
-            />
-            <p className="text-xs text-muted-foreground">Used to calculate profit margin</p>
           </div>
 
           <div className="space-y-2">

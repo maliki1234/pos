@@ -33,9 +33,9 @@ assert.deepEqual(
     productId: 2,
     name: "Rice",
     revenue: 30,
-    cost: 21,
-    profit: 9,
-    marginPct: 30,
+    cost: 0,
+    profit: 30,
+    marginPct: 100,
   }
 );
 

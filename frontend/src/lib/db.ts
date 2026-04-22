@@ -17,12 +17,10 @@ export interface StoredProduct {
   isActive: boolean;
   retail?: {
     unitPrice: number;
-    costPrice?: number;
     discount: number;
   };
   wholesale?: {
     unitPrice: number;
-    costPrice?: number;
     discount: number;
   };
   stock?: {

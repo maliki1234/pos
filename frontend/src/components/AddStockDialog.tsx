@@ -72,9 +72,9 @@ export function AddStockDialog({
       if (!formData.quantity || Number(formData.quantity) <= 0) {
         throw new Error('Quantity must be greater than 0');
       }
-      // Validate unit cost is provided
-      if (!formData.unitCost || Number(formData.unitCost) < 0) {
-        throw new Error('Unit cost is required');
+      // Validate unit cost is provided for profit reports
+      if (!formData.unitCost || Number(formData.unitCost) <= 0) {
+        throw new Error('Unit cost must be greater than 0');
       }
 
       // Parse and validate expiry date if provided
@@ -171,17 +171,18 @@ export function AddStockDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="unitCost">Unit Cost</Label>
+            <Label htmlFor="unitCost">Unit Cost (Buying Price)</Label>
             <Input
               id="unitCost"
               type="number"
               placeholder="0.00"
-              min="0"
+              min="0.01"
               step="0.01"
               value={formData.unitCost}
               onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
               disabled={isSubmitting || isLoading}
             />
+            <p className="text-xs text-muted-foreground">Used for product cost and profit reports.</p>
           </div>
 
           <div className="space-y-2">

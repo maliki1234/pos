@@ -18,7 +18,7 @@ import {
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-const EMPTY_EDIT = { name: "", description: "", barcode: "", categoryId: "", reorderPoint: "10", retailPrice: "", wholesalePrice: "", costPrice: "", unitLevel: "PIECE", parentId: "", conversionRate: "" };
+const EMPTY_EDIT = { name: "", description: "", barcode: "", categoryId: "", reorderPoint: "10", retailPrice: "", wholesalePrice: "", unitLevel: "PIECE", parentId: "", conversionRate: "" };
 
 export default function ProductsPage() {
   const { products, isLoading, loadProducts, searchProducts, createProduct, deleteProduct } = useProductsStore();
@@ -74,7 +74,6 @@ export default function ProductsPage() {
       reorderPoint: String(product.reorderPoint ?? 10),
       retailPrice: String(product.retail?.unitPrice ?? product.prices?.find((p: any) => p.customerType === "RETAIL")?.unitPrice ?? ""),
       wholesalePrice: String(product.wholesale?.unitPrice ?? product.prices?.find((p: any) => p.customerType === "WHOLESALE")?.unitPrice ?? ""),
-      costPrice: String(product.retail?.costPrice ?? product.prices?.find((p: any) => p.customerType === "RETAIL")?.costPrice ?? ""),
       unitLevel: product.unitLevel ?? "PIECE",
       parentId: product.parentId ? String(product.parentId) : "",
       conversionRate: product.conversionRate ? String(product.conversionRate) : "",
@@ -131,7 +130,6 @@ export default function ProductsPage() {
           body: JSON.stringify({
             customerType: "RETAIL",
             unitPrice: parseFloat(editForm.retailPrice),
-            costPrice: parseFloat(editForm.costPrice || editForm.retailPrice),
           }),
         });
       }
@@ -144,7 +142,6 @@ export default function ProductsPage() {
           body: JSON.stringify({
             customerType: "WHOLESALE",
             unitPrice: parseFloat(editForm.wholesalePrice),
-            costPrice: parseFloat(editForm.costPrice || editForm.wholesalePrice),
           }),
         });
       }
@@ -220,10 +217,6 @@ export default function ProductsPage() {
                 <div>
                   <label className="text-sm font-medium block mb-1">Wholesale Price ({currency.symbol})</label>
                   <Input type="number" min="0" step="0.01" value={editForm.wholesalePrice} onChange={e => setEditForm(f => ({ ...f, wholesalePrice: e.target.value }))} placeholder="0.00" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium block mb-1">Cost Price ({currency.symbol})</label>
-                  <Input type="number" min="0" step="0.01" value={editForm.costPrice} onChange={e => setEditForm(f => ({ ...f, costPrice: e.target.value }))} placeholder="0.00" />
                 </div>
                 <div>
                   <label className="text-sm font-medium block mb-1">Reorder Point</label>

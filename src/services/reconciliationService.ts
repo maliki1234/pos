@@ -54,23 +54,25 @@ export class ReconciliationService {
     const totalRevenue = saleTxns.reduce((s, t) => s + parseFloat(t.totalAmount.toString()), 0);
     const voidTotal = voidedTxns.reduce((s, t) => s + parseFloat(t.totalAmount.toString()), 0);
 
-    const cogsRows = await prisma.$queryRaw<{ totalCost: bigint }[]>`
-      SELECT SUM(pp."costPrice" * ti.quantity)::bigint AS "totalCost"
+    const cogsRows = await prisma.$queryRaw<{ totalCost: { toString(): string } | number | null }[]>`
+      SELECT COALESCE(SUM(COALESCE(sc."stockAverageCost", 0) * ti.quantity), 0) AS "totalCost"
       FROM transaction_items ti
       JOIN transactions t ON t.id = ti."transactionId"
-      LEFT JOIN LATERAL (
-        SELECT "costPrice"
-        FROM product_prices pp2
-        WHERE pp2."productId" = ti."productId" AND pp2."isActive" = true
-        ORDER BY pp2."minQuantity" DESC
-        LIMIT 1
-      ) pp ON true
+      LEFT JOIN (
+        SELECT
+          "productId",
+          SUM("unitCost" * quantity)::numeric / NULLIF(SUM(quantity), 0) AS "stockAverageCost"
+        FROM stock_batches
+        WHERE quantity > 0
+          AND "unitCost" > 0
+        GROUP BY "productId"
+      ) sc ON sc."productId" = ti."productId"
       WHERE t."businessId" = ${businessId}
         AND t."createdAt" >= ${startOfDay} AND t."createdAt" < ${endOfDay}
         AND t."isVoided" = false AND t."transactionType" = 'SALE'
         ${cashierId ? Prisma.sql`AND t."userId" = ${cashierId}` : Prisma.sql``}
     `;
-    const totalCOGS = Number(cogsRows[0]?.totalCost ?? 0);
+    const totalCOGS = Number(cogsRows[0]?.totalCost?.toString() ?? 0);
     const grossProfit = totalRevenue - totalCOGS;
 
     const paymentDetails = Object.entries(methodTotals).map(([paymentMethod, total]) => ({

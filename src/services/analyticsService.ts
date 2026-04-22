@@ -138,8 +138,7 @@ export class AnalyticsService {
         p.name,
         SUM(ti.quantity)                                  AS "quantitySold",
         SUM(ti."lineTotal")                               AS "totalRevenue",
-        sc."stockAverageCost"                             AS "stockAverageCost",
-        pc."priceCost"                                    AS "priceCost"
+        sc."stockAverageCost"                             AS "stockAverageCost"
       FROM transaction_items ti
       JOIN products p          ON p.id  = ti."productId"
       JOIN transactions t      ON t.id  = ti."transactionId"
@@ -152,18 +151,10 @@ export class AnalyticsService {
           AND "unitCost" > 0
         GROUP BY "productId"
       ) sc ON sc."productId" = ti."productId"
-      LEFT JOIN (
-        SELECT
-          "productId",
-          MIN("costPrice") AS "priceCost"
-        FROM product_prices
-        WHERE "isActive" = true
-        GROUP BY "productId"
-      ) pc ON pc."productId" = ti."productId"
       WHERE t."businessId" = ${businessId}
         AND t."isVoided" = false AND t."transactionType" = 'SALE'
       ${dateFilter}
-      GROUP BY ti."productId", p.name, sc."stockAverageCost", pc."priceCost"
+      GROUP BY ti."productId", p.name, sc."stockAverageCost"
       ORDER BY "totalRevenue" DESC
     `;
 

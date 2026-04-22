@@ -8,8 +8,6 @@ export function transformApiProduct(p: any): StoredProduct {
   const wholesale = p.prices?.find((pr: any) => pr.customerType === 'WHOLESALE');
   const retailPrice = retail?.unitPrice || 0;
   const wholesalePrice = wholesale?.unitPrice || retailPrice;
-  const retailCostPrice = retail?.costPrice || 0;
-  const wholesaleCostPrice = wholesale?.costPrice || retailCostPrice;
   const totalQuantity = (p.stock || []).reduce((sum: number, batch: any) => {
     return sum + (batch.quantity - batch.quantityUsed);
   }, 0);
@@ -23,12 +21,10 @@ export function transformApiProduct(p: any): StoredProduct {
     isActive: p.isActive,
     retail: {
       unitPrice: retailPrice,
-      costPrice: retailCostPrice,
       discount: retail?.discount || 0,
     },
     wholesale: {
       unitPrice: wholesalePrice,
-      costPrice: wholesaleCostPrice,
       discount: wholesale?.discount || 0,
     },
     stock: {
@@ -45,7 +41,6 @@ function buildProductPayload(data: {
   barcode?: string;
   retailPrice: number;
   wholesalePrice: number;
-  costPrice: number;
   reorderPoint?: number;
 }) {
   return {
@@ -59,13 +54,11 @@ function buildProductPayload(data: {
       {
         customerType: "RETAIL",
         unitPrice: data.retailPrice,
-        costPrice: data.costPrice,
         discount: 0,
       },
       {
         customerType: "WHOLESALE",
         unitPrice: data.wholesalePrice,
-        costPrice: data.costPrice,
         discount: 0,
       },
     ],
@@ -163,7 +156,6 @@ interface ProductsState {
     barcode?: string;
     retailPrice: number;
     wholesalePrice: number;
-    costPrice: number;
     reorderPoint?: number;
   }) => Promise<void>;
   deleteProduct: (id: number) => Promise<void>;
@@ -337,12 +329,10 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         isActive: newProduct.isActive,
         retail: {
           unitPrice: data.retailPrice,
-          costPrice: data.costPrice,
           discount: 0,
         },
         wholesale: {
           unitPrice: data.wholesalePrice,
-          costPrice: data.costPrice,
           discount: 0,
         },
         stock: { quantity: 0, serverQuantity: 0 },
@@ -371,12 +361,10 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         isActive: true,
         retail: {
           unitPrice: data.retailPrice,
-          costPrice: data.costPrice,
           discount: 0,
         },
         wholesale: {
           unitPrice: data.wholesalePrice,
-          costPrice: data.costPrice,
           discount: 0,
         },
         stock: { quantity: 0, serverQuantity: 0 },
