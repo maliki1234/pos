@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { calculateStockUnitCost, type StockCostInputMode } from '@/lib/stockCostInput';
 import { calculateStockProfitPreview, type StockProfitLine } from '@/lib/stockProfit';
 
 interface StockProductOption {
@@ -30,6 +31,18 @@ interface AddStockDialogProps {
   }) => Promise<void>;
   isLoading?: boolean;
   products?: StockProductOption[];
+}
+
+function getEmptyFormData(productId?: number) {
+  return {
+    productId: productId?.toString() || '',
+    quantity: '',
+    costInputMode: 'unit' as StockCostInputMode,
+    unitCost: '',
+    totalCost: '',
+    expiryDate: '',
+    notes: '',
+  };
 }
 
 function formatMoney(value: number): string {
@@ -92,13 +105,7 @@ export function AddStockDialog({
   isLoading = false,
   products = [],
 }: AddStockDialogProps) {
-  const [formData, setFormData] = useState({
-    productId: initialProductId?.toString() || '',
-    quantity: '',
-    unitCost: '',
-    expiryDate: '',
-    notes: '',
-  });
+  const [formData, setFormData] = useState(() => getEmptyFormData(initialProductId));
   const [error, setError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const selectedProduct = useMemo(() => {
@@ -106,7 +113,12 @@ export function AddStockDialog({
     return products.find((product) => product.id === selectedId);
   }, [formData.productId, initialProductId, products]);
   const quantity = Number(formData.quantity || 0);
-  const unitCost = Number(formData.unitCost || 0);
+  const unitCost = calculateStockUnitCost({
+    mode: formData.costInputMode,
+    quantity,
+    unitCost: Number(formData.unitCost || 0),
+    totalCost: Number(formData.totalCost || 0),
+  });
   const profitPreview = selectedProduct && quantity > 0 && unitCost > 0
     ? calculateStockProfitPreview({
         quantity,
@@ -119,13 +131,7 @@ export function AddStockDialog({
   useEffect(() => {
     if (!open) return;
     setError('');
-    setFormData({
-      productId: initialProductId?.toString() || '',
-      quantity: '',
-      unitCost: '',
-      expiryDate: '',
-      notes: '',
-    });
+    setFormData(getEmptyFormData(initialProductId));
   }, [initialProductId, open]);
 
   /**
@@ -150,9 +156,15 @@ export function AddStockDialog({
       if (!formData.quantity || Number(formData.quantity) <= 0) {
         throw new Error('Quantity must be greater than 0');
       }
-      // Validate unit cost is provided for profit reports
-      if (!formData.unitCost || Number(formData.unitCost) <= 0) {
+      // Validate cost input is provided for stock value and profit reports
+      if (formData.costInputMode === 'unit' && (!formData.unitCost || Number(formData.unitCost) <= 0)) {
         throw new Error('Unit cost must be greater than 0');
+      }
+      if (formData.costInputMode === 'total' && (!formData.totalCost || Number(formData.totalCost) <= 0)) {
+        throw new Error('Total batch cost must be greater than 0');
+      }
+      if (unitCost <= 0) {
+        throw new Error('Calculated unit cost must be greater than 0');
       }
       if (!selectedProduct) {
         throw new Error('Product selling prices could not be loaded. Please reload products and try again.');
@@ -160,7 +172,7 @@ export function AddStockDialog({
 
       const profitValidation = calculateStockProfitPreview({
         quantity: Number(formData.quantity),
-        unitCost: Number(formData.unitCost),
+        unitCost,
         retailPrice: selectedProduct.retailPrice,
         wholesalePrice: selectedProduct.wholesalePrice,
       });
@@ -181,19 +193,13 @@ export function AddStockDialog({
       await onSubmit({
         productId: Number(formData.productId),
         quantity: Number(formData.quantity),
-        unitCost: Number(formData.unitCost),
+        unitCost,
         expiryDate,
         notes: formData.notes.trim() || undefined,
       });
 
       // Reset form to initial state
-      setFormData({
-        productId: initialProductId?.toString() || '',
-        quantity: '',
-        unitCost: '',
-        expiryDate: '',
-        notes: '',
-      });
+      setFormData(getEmptyFormData(initialProductId));
       // Close dialog after successful submission
       onOpenChange(false);
     } catch (err) {
@@ -263,16 +269,96 @@ export function AddStockDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="unitCost">Unit Cost (Buying Price)</Label>
+              <Label>Cost Entry Type</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <label
+                  className={`flex cursor-pointer items-center justify-center rounded-md border px-3 py-2 text-sm font-medium ${
+                    formData.costInputMode === 'unit'
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'bg-background text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="costInputMode"
+                    value="unit"
+                    checked={formData.costInputMode === 'unit'}
+                    onChange={() => setFormData({ ...formData, costInputMode: 'unit' })}
+                    className="sr-only"
+                    disabled={isSubmitting || isLoading}
+                  />
+                  By unit
+                </label>
+                <label
+                  className={`flex cursor-pointer items-center justify-center rounded-md border px-3 py-2 text-sm font-medium ${
+                    formData.costInputMode === 'total'
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'bg-background text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="costInputMode"
+                    value="total"
+                    checked={formData.costInputMode === 'total'}
+                    onChange={() => setFormData({ ...formData, costInputMode: 'total' })}
+                    className="sr-only"
+                    disabled={isSubmitting || isLoading}
+                  />
+                  By total
+                </label>
+              </div>
+            </div>
+
+            {formData.costInputMode === 'unit' && (
+              <div className="space-y-2">
+                <Label htmlFor="unitCost">Unit Cost (Buying Price)</Label>
+                <Input
+                  id="unitCost"
+                  type="number"
+                  placeholder="0.00"
+                  min="0.01"
+                  step="0.01"
+                  value={formData.unitCost}
+                  onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
+                  disabled={isSubmitting || isLoading}
+                />
+                <p className="text-xs text-muted-foreground">Cost for one item.</p>
+              </div>
+            )}
+
+            {formData.costInputMode === 'total' && (
+              <div className="space-y-2">
+                <Label htmlFor="totalCost">Total Batch Cost</Label>
+                <Input
+                  id="totalCost"
+                  type="number"
+                  placeholder="0.00"
+                  min="0.01"
+                  step="0.01"
+                  value={formData.totalCost}
+                  onChange={(e) => setFormData({ ...formData, totalCost: e.target.value })}
+                  disabled={isSubmitting || isLoading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Unit cost will be calculated from total cost divided by quantity.
+                </p>
+                {quantity > 0 && unitCost > 0 && (
+                  <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                    Calculated unit cost: <span className="font-semibold">{formatMoney(unitCost)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="computedUnitCost">Cost used for profit</Label>
               <Input
-                id="unitCost"
-                type="number"
-                placeholder="0.00"
-                min="0.01"
-                step="0.01"
-                value={formData.unitCost}
-                onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
-                disabled={isSubmitting || isLoading}
+                id="computedUnitCost"
+                type="text"
+                value={unitCost > 0 ? formatMoney(unitCost) : ''}
+                placeholder="Calculated after cost is entered"
+                readOnly
               />
               <p className="text-xs text-muted-foreground">Used for product cost and profit reports.</p>
             </div>
