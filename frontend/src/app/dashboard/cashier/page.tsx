@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { Receipt } from "@/components/Receipt";
+import { db } from "@/lib/db";
+import { buildVisibleCreditSummary, type CreditSummary } from "@/lib/creditBalance";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -61,7 +63,8 @@ export default function CashierPage() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastTransactionId, setLastTransactionId] = useState("");
   const [cardReference, setCardReference] = useState("");
-  const [creditSummary, setCreditSummary] = useState<{ totalOutstanding: number; openEntries: number; overdueCount: number } | null>(null);
+  const [creditSummary, setCreditSummary] = useState<CreditSummary | null>(null);
+  const [pendingCreditAmount, setPendingCreditAmount] = useState(0);
   const [showPaymentPanel, setShowPaymentPanel] = useState(false);
 
   // Cash change calculator
@@ -116,6 +119,7 @@ export default function CashierPage() {
   const [mpesaPortion, setMpesaPortion] = useState("");
 
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+  const visibleCreditSummary = buildVisibleCreditSummary(creditSummary, pendingCreditAmount);
 
   useEffect(() => {
     fetchSettings();
@@ -132,11 +136,41 @@ export default function CashierPage() {
     } catch { setCustomerResults([]); }
   };
 
-  const fetchCreditSummary = async (customerId: string) => {
+  const calculatePendingCreditAmount = async (customerId: string) => {
+    try {
+      const queuedTransactions = await db.syncQueue.where("type").equals("TRANSACTION").toArray();
+      return queuedTransactions.reduce((total, item) => {
+        const data = item.data ?? {};
+        if (item.action !== "CREATE" || data.customerId !== customerId || data.paymentMethod !== "CREDIT") {
+          return total;
+        }
+        return total + Number(data.totalAmount || 0);
+      }, 0);
+    } catch {
+      return 0;
+    }
+  };
+
+  const fetchCreditSummary = async (customerId: string): Promise<CreditSummary | null> => {
+    if (!token) return null;
     try {
       const res = await fetch(`${API}/credit/customer/${customerId}/summary`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setCreditSummary((await res.json()).data);
-    } catch { }
+      if (!res.ok) return null;
+      const summary = (await res.json()).data as CreditSummary;
+      setCreditSummary(summary);
+      return summary;
+    } catch {
+      return null;
+    }
+  };
+
+  const loadCustomerCredit = async (customerId: string) => {
+    const [summary, pendingAmount] = await Promise.all([
+      fetchCreditSummary(customerId),
+      calculatePendingCreditAmount(customerId),
+    ]);
+    setPendingCreditAmount(pendingAmount);
+    return summary;
   };
 
   const handleSelectCustomer = (c: any) => {
@@ -144,8 +178,10 @@ export default function CashierPage() {
     setCustomer(c.id);
     setCustomerQuery(c.name);
     setCustomerResults([]);
+    setCreditSummary(null);
+    setPendingCreditAmount(0);
     fetchAccount(c.id);
-    fetchCreditSummary(c.id);
+    void loadCustomerCredit(c.id);
     // Pre-fill phone for payment methods
     if (c.phone && !mpesaPhone) setMpesaPhone(c.phone);
     if (c.phone && !azampayPhone) setAzampayPhone(c.phone);
@@ -158,6 +194,7 @@ export default function CashierPage() {
     setCustomerResults([]);
     clearAccount();
     setCreditSummary(null);
+    setPendingCreditAmount(0);
     setLoyaltyRedemption(0, 0);
     setPointsInput("");
   };
@@ -334,6 +371,10 @@ export default function CashierPage() {
       ];
     }
 
+    const wasCreditSale = paymentMethod === "CREDIT";
+    const creditCustomerId = selectedCustomer?.id;
+    const creditSaleAmount = Number(totalAmount) || 0;
+
     setIsSubmitting(true);
     try {
       const { setMpesaRef: setCartMpesaRef, setPayments } = useCartStore.getState();
@@ -341,6 +382,18 @@ export default function CashierPage() {
       setPayments(paymentsArr);
 
       const transaction = await submitTransaction();
+      if (wasCreditSale && creditCustomerId) {
+        setPendingCreditAmount((amount) => amount + creditSaleAmount);
+        if (isOnline) {
+          void useSyncStore.getState().syncPendingTransactions()
+            .catch(() => undefined)
+            .finally(() => {
+              void loadCustomerCredit(creditCustomerId);
+            });
+        } else {
+          void calculatePendingCreditAmount(creditCustomerId).then(setPendingCreditAmount);
+        }
+      }
       setLastTransactionId(transaction.id);
       setShowReceipt(true);
       setShowPaymentPanel(false);
@@ -525,12 +578,12 @@ export default function CashierPage() {
           {/* Credit limit warning */}
           {selectedCustomer && selectedCustomer.creditLimit != null && paymentMethod === "CREDIT" && (
             <div className={`mt-2 rounded-lg px-3 py-2 text-xs border ${
-              creditSummary && creditSummary.totalOutstanding >= selectedCustomer.creditLimit
+              visibleCreditSummary.totalOutstanding >= Number(selectedCustomer.creditLimit)
                 ? "bg-red-50 border-red-200 text-red-700"
                 : "bg-amber-50 border-amber-200 text-amber-700"}`}>
               {t("credit_limit")}: {fmt(selectedCustomer.creditLimit)}
-              {creditSummary && creditSummary.totalOutstanding > 0 && (
-                <span className="ml-1">({t("used")}: {fmt(creditSummary.totalOutstanding)})</span>
+              {visibleCreditSummary.totalOutstanding > 0 && (
+                <span className="ml-1">({t("used")}: {fmt(visibleCreditSummary.totalOutstanding)})</span>
               )}
             </div>
           )}
@@ -830,10 +883,20 @@ export default function CashierPage() {
                         )}
                       </div>
                     )}
-                    {selectedCustomer && creditSummary && creditSummary.totalOutstanding > 0 && (
-                      <div className={`rounded-lg px-3 py-2 text-xs border ${creditSummary.overdueCount > 0 ? "bg-red-50 border-red-200 text-red-700" : "bg-amber-50 border-amber-200 text-amber-700"}`}>
-                        <span className="font-semibold">{selectedCustomer.name}</span> {t("owes")} <span className="font-semibold">{fmt(creditSummary.totalOutstanding)}</span>
-                        {creditSummary.overdueCount > 0 && ` — ${creditSummary.overdueCount} overdue`}
+                    {selectedCustomer && (
+                      <div className={`rounded-lg px-3 py-2 text-xs border ${
+                        visibleCreditSummary.overdueCount > 0
+                          ? "bg-red-50 border-red-200 text-red-700"
+                          : pendingCreditAmount > 0
+                            ? "bg-amber-50 border-amber-200 text-amber-700"
+                            : "bg-muted border-border text-muted-foreground"
+                      }`}>
+                        <span className="font-semibold">{selectedCustomer.name}</span> balance:{" "}
+                        <span className="font-semibold">{fmt(visibleCreditSummary.totalOutstanding)}</span>
+                        {pendingCreditAmount > 0 && (
+                          <span className="ml-1">(includes pending sync {fmt(pendingCreditAmount)})</span>
+                        )}
+                        {visibleCreditSummary.overdueCount > 0 && ` - ${visibleCreditSummary.overdueCount} overdue`}
                       </div>
                     )}
                     <div>

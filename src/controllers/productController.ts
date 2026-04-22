@@ -151,6 +151,38 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
   } catch (error) { next(error); }
 };
 
+export const deactivateProduct = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const productId = parseInt(req.params.id);
+    if (Number.isNaN(productId)) return next(new ValidationError('Invalid product id'));
+
+    const existing = await prisma.product.findFirst({
+      where: { id: productId, businessId: bid(req), isActive: true },
+    });
+    if (!existing) return next(new NotFoundError('Product'));
+
+    const product = await prisma.$transaction(async (tx) => {
+      await tx.stockBatch.updateMany({
+        where: { productId, isActive: true },
+        data: { isActive: false },
+      });
+
+      return tx.product.update({
+        where: { id: productId },
+        data: { isActive: false },
+        include: {
+          category: true,
+          prices: { where: { isActive: true } },
+          stock: { where: { isActive: true } },
+        },
+      });
+    });
+
+    logger.info(`Product deactivated: ${product.id}`);
+    res.json({ success: true, message: 'Product deleted successfully', data: product });
+  } catch (error) { next(error); }
+};
+
 export const setProductPrice = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { error, value } = createPriceSchema.validate(req.body);

@@ -6,6 +6,7 @@ import {
   getTotalQuantity,
   deductStock,
   updateBatchQuantityUsed,
+  deleteStockBatch,
   getLowStockProducts,
   getExpiredStockBatches,
   setReorderPoint,
@@ -28,6 +29,9 @@ router.post('/deduct', authenticate, authorize(['ADMIN', 'CASHIER']), deductStoc
 
 // Update batch quantity used
 router.patch('/batch/:batchId', authenticate, authorize(['ADMIN', 'MANAGER']), updateBatchQuantityUsed);
+
+// Delete/archive a stock batch
+router.delete('/batch/:batchId', authenticate, authorize(['ADMIN', 'MANAGER']), deleteStockBatch);
 
 // Get low stock products
 router.get('/low-stock', authenticate, authorize(['ADMIN', 'MANAGER']), getLowStockProducts);

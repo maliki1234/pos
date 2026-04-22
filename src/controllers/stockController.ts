@@ -150,6 +150,29 @@ export const updateBatchQuantityUsed = async (
   }
 };
 
+export const deleteStockBatch = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const deleted = await stockService.deactivateStockBatch(
+      req.user!.businessId,
+      req.params.batchId
+    );
+
+    logger.info(`Batch ${deleted.batchNumber} deleted`);
+
+    res.json({
+      success: true,
+      message: 'Stock batch deleted successfully',
+      data: deleted,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getLowStockProducts = async (
   req: Request,
   res: Response,

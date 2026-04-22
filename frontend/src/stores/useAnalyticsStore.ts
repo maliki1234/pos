@@ -155,9 +155,12 @@ export const useAnalyticsStore = create<AnalyticsState>((set) => ({
     try {
       const q = buildQuery({ startDate, endDate });
       const res = await fetch(`${API}/analytics/profit${q}`, { headers: authHeaders() });
-      if (!res.ok) throw new Error("Failed to fetch profit report");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to fetch profit report");
+      }
       const data = await res.json();
-      set({ profitData: data.data, profitSummary: data.summary ?? null, isLoading: false });
+      set({ profitData: data.data, profitSummary: data.summary ?? null, error: null, isLoading: false });
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
     }
@@ -168,6 +171,10 @@ export const useAnalyticsStore = create<AnalyticsState>((set) => ({
     try {
       const q = buildQuery({ startDate, endDate });
       const res = await fetch(`${API}/analytics/staff${q}`, { headers: authHeaders() });
+      if (res.status === 403) {
+        set({ staffPerformance: [], isLoading: false });
+        return;
+      }
       if (!res.ok) throw new Error("Failed to fetch staff performance");
       const data = await res.json();
       set({ staffPerformance: data.data, isLoading: false });

@@ -2,13 +2,15 @@
 import { useEffect, useState } from 'react';
 import { useProductsStore } from '@/stores/useProductsStore';
 import { useStockStore } from '@/stores/useStockStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { AddStockDialog } from '@/components/AddStockDialog';
-import { Plus, TrendingDown, Package, AlertTriangle, Clock } from 'lucide-react';
+import { Plus, TrendingDown, Package, AlertTriangle, Clock, Trash2 } from 'lucide-react';
+import { toast } from 'react-toastify';
 
 // ── Expiry helpers ───────────────────────────────────────────────────────────
 function daysUntilExpiry(timestamp?: number): number | null {
@@ -48,9 +50,12 @@ interface StockView {
  */
 export default function StockPage() {
   const { products, loadProducts } = useProductsStore();
-  const { stock, lowStockProducts, loadStockByProduct, addStock, fetchLowStockProducts, setReorderPoint } = useStockStore();
+  const { stock, lowStockProducts, loadStockByProduct, addStock, fetchLowStockProducts, setReorderPoint, deleteStock } = useStockStore();
+  const { user } = useAuthStore();
+  const canManage = user?.role === "ADMIN" || user?.role === "MANAGER";
   const [reorderEdits, setReorderEdits] = useState<Record<number, string>>({});
   const [savingReorder, setSavingReorder] = useState<Record<number, boolean>>({});
+  const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null);
   const [stockView, setStockView] = useState<StockView[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -182,6 +187,21 @@ export default function StockPage() {
   const openAddStockDialog = (productId: number) => {
     setSelectedProductId(productId);
     setIsDialogOpen(true);
+  };
+
+  const handleDeleteBatch = async (batch: any) => {
+    const label = batch.batchNumber ? `Batch #${batch.batchNumber}` : "this batch";
+    if (!confirm(`Delete ${label}? Sales history will remain, but this stock will no longer be available.`)) return;
+
+    setDeletingBatchId(batch.id);
+    try {
+      await deleteStock(batch.id);
+      toast.success("Stock batch deleted");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete stock batch");
+    } finally {
+      setDeletingBatchId(null);
+    }
   };
 
   /**
@@ -392,6 +412,7 @@ export default function StockPage() {
                           <TableHead className="text-right">Unit Cost</TableHead>
                           <TableHead>Expiry</TableHead>
                           <TableHead>Notes</TableHead>
+                          {canManage && <TableHead className="text-right">Action</TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -436,6 +457,18 @@ export default function StockPage() {
                               <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
                                 {batch.notes || '—'}
                               </TableCell>
+                              {canManage && (
+                                <TableCell className="text-right">
+                                  <button
+                                    onClick={() => handleDeleteBatch(batch)}
+                                    disabled={deletingBatchId === batch.id}
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                                    title="Delete stock batch"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </TableCell>
+                              )}
                             </TableRow>
                           );
                         })}

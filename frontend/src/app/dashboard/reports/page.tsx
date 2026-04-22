@@ -4,7 +4,9 @@ import React, { useEffect, useState } from "react";
 import { useAnalyticsStore } from "@/stores/useAnalyticsStore";
 import { useCreditStore } from "@/stores/useCreditStore";
 import { useStockStore } from "@/stores/useStockStore";
+import { useSyncStore } from "@/stores/useSyncStore";
 import { useCurrencyStore } from "@/stores/useCurrencyStore";
+import { getVisibleProfitSummary } from "@/lib/reportHelpers";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
@@ -58,9 +60,11 @@ export default function ReportsPage() {
     dashboardStats, salesTrend, topProducts, paymentBreakdown, profitData, profitSummary, staffPerformance,
     fetchDashboardStats, fetchSalesTrend, fetchTopProducts, fetchPaymentBreakdown,
     fetchProfitReport, fetchStaffPerformance,
+    error: analyticsError,
   } = useAnalyticsStore();
   const { agingReport, fetchAgingReport } = useCreditStore();
   const { lowStockProducts, fetchLowStockProducts } = useStockStore();
+  const { pendingItems, pendingCount, isSyncing, lastSyncTime, syncPendingTransactions, getPendingCount } = useSyncStore();
 
   const today = new Date().toISOString().slice(0, 10);
   const thirtyAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
@@ -70,11 +74,13 @@ export default function ReportsPage() {
   const [start, setStart] = useState(thirtyAgo);
   const [end,   setEnd]   = useState(today);
   const [isLoading, setIsLoading] = useState(true);
+  const visibleProfitSummary = getVisibleProfitSummary(profitSummary);
 
   useEffect(() => {
     fetchDashboardStats();
     fetchLowStockProducts();
     fetchAgingReport();
+    getPendingCount();
   }, []);
 
   useEffect(() => {
@@ -204,6 +210,34 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {(pendingCount > 0 || isSyncing || lastSyncTime) && (
+        <Card className={pendingCount > 0 ? "border-amber-200 bg-amber-50 dark:bg-amber-950/20" : ""}>
+          <CardContent className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold">
+                {isSyncing ? "Syncing offline data..." : pendingCount > 0 ? `${pendingCount} offline item${pendingCount === 1 ? "" : "s"} waiting to sync` : "Offline data is synced"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {pendingItems.length > 0
+                  ? pendingItems.slice(0, 3).map((item) => `${item.type} ${item.action}${item.lastError ? `: ${item.lastError}` : ""}`).join(" | ")
+                  : lastSyncTime
+                    ? `Last sync: ${new Date(lastSyncTime).toLocaleString()}`
+                    : "No pending offline work."}
+              </p>
+            </div>
+            {pendingCount > 0 && (
+              <button
+                onClick={() => syncPendingTransactions()}
+                disabled={isSyncing}
+                className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isSyncing ? "Syncing..." : "Retry Sync"}
+              </button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* KPI Strip */}
       {dashboardStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -226,52 +260,53 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {profitSummary && (
-        <section>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Profit Summary</h2>
-              <p className="text-sm text-muted-foreground">Net profit includes running costs for the selected period.</p>
-            </div>
-            <button
-              onClick={() => exportCSV("profit_summary.csv", [{
-                revenue: profitSummary.revenue,
-                product_cost: profitSummary.productCost,
-                gross_profit: profitSummary.grossProfit,
-                running_costs: profitSummary.runningCosts,
-                net_profit: profitSummary.netProfit,
-                gross_margin_pct: profitSummary.grossMarginPct,
-                net_margin_pct: profitSummary.netMarginPct,
-              }])}
-              className="flex items-center gap-1 text-xs text-primary hover:underline"
-            >
-              <Download className="h-3 w-3" /> CSV
-            </button>
+      <section>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Profit Summary</h2>
+            <p className="text-sm text-muted-foreground">Net profit includes running costs for the selected period.</p>
+            {analyticsError && (
+              <p className="mt-1 text-xs text-amber-600">Report note: {analyticsError}</p>
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-            {[
-              { label: "Revenue", value: fmt(profitSummary.revenue), icon: DollarSign, color: "text-primary" },
-              { label: "Product Cost", value: fmt(profitSummary.productCost), icon: ShoppingCart, color: "text-orange-600" },
-              { label: "Gross Profit", value: fmt(profitSummary.grossProfit), icon: TrendingUp, color: "text-green-600" },
-              { label: "Running Costs", value: fmt(profitSummary.runningCosts), icon: Clock, color: "text-red-500" },
-              { label: "Net Profit", value: fmt(profitSummary.netProfit), icon: Star, color: profitSummary.netProfit >= 0 ? "text-green-600" : "text-red-500" },
-            ].map(({ label, value, icon: Icon, color }) => (
-              <Card key={label}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">{label}</CardTitle>
-                  <Icon className={`h-4 w-4 ${color}`} />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xl font-bold">{value}</p>
-                  {label === "Net Profit" && (
-                    <p className="text-xs text-muted-foreground">{profitSummary.netMarginPct}% net margin</p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
+          <button
+            onClick={() => exportCSV("profit_summary.csv", [{
+              revenue: visibleProfitSummary.revenue,
+              product_cost: visibleProfitSummary.productCost,
+              gross_profit: visibleProfitSummary.grossProfit,
+              running_costs: visibleProfitSummary.runningCosts,
+              net_profit: visibleProfitSummary.netProfit,
+              gross_margin_pct: visibleProfitSummary.grossMarginPct,
+              net_margin_pct: visibleProfitSummary.netMarginPct,
+            }])}
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            <Download className="h-3 w-3" /> CSV
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+          {[
+            { label: "Revenue", value: fmt(visibleProfitSummary.revenue), icon: DollarSign, color: "text-primary" },
+            { label: "Product Cost", value: fmt(visibleProfitSummary.productCost), icon: ShoppingCart, color: "text-orange-600" },
+            { label: "Gross Profit", value: fmt(visibleProfitSummary.grossProfit), icon: TrendingUp, color: "text-green-600" },
+            { label: "Running Costs", value: fmt(visibleProfitSummary.runningCosts), icon: Clock, color: "text-red-500" },
+            { label: "Net Profit", value: fmt(visibleProfitSummary.netProfit), icon: Star, color: visibleProfitSummary.netProfit >= 0 ? "text-green-600" : "text-red-500" },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <Card key={label}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{label}</CardTitle>
+                <Icon className={`h-4 w-4 ${color}`} />
+              </CardHeader>
+              <CardContent>
+                <p className="text-xl font-bold">{value}</p>
+                {label === "Net Profit" && (
+                  <p className="text-xs text-muted-foreground">{visibleProfitSummary.netMarginPct}% net margin</p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
 
       {/* Smart Recommendations */}
       <section>

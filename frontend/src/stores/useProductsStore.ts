@@ -160,6 +160,7 @@ interface ProductsState {
     costPrice: number;
     reorderPoint?: number;
   }) => Promise<void>;
+  deleteProduct: (id: number) => Promise<void>;
   syncProducts: () => Promise<void>;
   clearProducts: () => void;
 }
@@ -383,6 +384,80 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       });
       await get().loadProducts();
       set({ isLoading: false, error: "Product saved offline - will sync when online" });
+    }
+  },
+
+  deleteProduct: async (id) => {
+    set({ isLoading: true, error: null });
+    const pendingTransactions = await db.syncQueue.where("type").equals("TRANSACTION").toArray();
+    const hasPendingSale = pendingTransactions.some((item) =>
+      (item.data?.items || []).some((line: any) => Number(line.productId) === id)
+    );
+    if (hasPendingSale) {
+      const message = "Sync pending sales before deleting this product";
+      set({ isLoading: false, error: message });
+      throw new Error(message);
+    }
+
+    try {
+      const token = useAuthStore.getState().token;
+      const headers: any = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${id}`, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to delete product");
+      }
+
+      await db.products.delete(id);
+      await db.stock.where("productId").equals(id).delete();
+
+      set((state) => ({
+        products: state.products.filter((product) => product.id !== id),
+        isLoading: false,
+      }));
+    } catch (error: any) {
+      if (!isOfflineFallbackError(error)) {
+        set({ error: error.message, isLoading: false });
+        throw error;
+      }
+
+      const pendingCreates = await db.syncQueue.where("type").equals("PRODUCT").toArray();
+      const pendingCreate = pendingCreates.find((item) => item.data?.localProductId === id);
+
+      if (pendingCreate) {
+        await db.syncQueue.delete(pendingCreate.id);
+      } else {
+        await db.syncQueue.put({
+          id: `sync_product_delete_${id}`,
+          type: "PRODUCT",
+          action: "DELETE",
+          data: { id },
+          createdAt: Date.now(),
+          attempts: 0,
+        });
+      }
+
+      const pendingStockCreates = await db.syncQueue.where("type").equals("STOCK").toArray();
+      await Promise.all(
+        pendingStockCreates
+          .filter((item) => item.data?.payload?.productId === id)
+          .map((item) => db.syncQueue.delete(item.id))
+      );
+
+      await db.products.delete(id);
+      await db.stock.where("productId").equals(id).delete();
+
+      set((state) => ({
+        products: state.products.filter((product) => product.id !== id),
+        isLoading: false,
+        error: "Product deleted offline - will sync when online",
+      }));
     }
   },
 

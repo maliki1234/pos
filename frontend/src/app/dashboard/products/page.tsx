@@ -5,7 +5,7 @@ import { useProductsStore } from "@/stores/useProductsStore";
 import { useCategoriesStore } from "@/stores/useCategoriesStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useCurrencyStore } from "@/stores/useCurrencyStore";
-import { Plus, Pencil, X } from "lucide-react";
+import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 const EMPTY_EDIT = { name: "", description: "", barcode: "", categoryId: "", reorderPoint: "10", retailPrice: "", wholesalePrice: "", costPrice: "", unitLevel: "PIECE", parentId: "", conversionRate: "" };
 
 export default function ProductsPage() {
-  const { products, isLoading, loadProducts, searchProducts, createProduct } = useProductsStore();
+  const { products, isLoading, loadProducts, searchProducts, createProduct, deleteProduct } = useProductsStore();
   const { categories, loadCategories } = useCategoriesStore();
   const { token, user } = useAuthStore();
   const { currency } = useCurrencyStore();
@@ -37,6 +37,7 @@ export default function ProductsPage() {
   const [editForm, setEditForm] = useState({ ...EMPTY_EDIT });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
 
   useEffect(() => { loadProducts(); loadCategories(); }, []);
 
@@ -82,6 +83,22 @@ export default function ProductsPage() {
   };
 
   const closeEdit = () => { setEditTarget(null); setEditError(""); };
+
+  const handleDeleteProduct = async (event: React.MouseEvent, product: any) => {
+    event.stopPropagation();
+    if (!confirm(`Delete product "${product.name}" and archive its stock? Sales history will remain.`)) return;
+
+    setDeletingProductId(product.id);
+    try {
+      await deleteProduct(product.id);
+      if (editTarget?.id === product.id) closeEdit();
+      toast.success("Product deleted");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete product");
+    } finally {
+      setDeletingProductId(null);
+    }
+  };
 
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -284,7 +301,7 @@ export default function ProductsPage() {
                   <TableHead className="text-right">Wholesale</TableHead>
                   <TableHead className="text-right">Stock</TableHead>
                   <TableHead>Status</TableHead>
-                  {canManage && <TableHead className="w-12"></TableHead>}
+                  {canManage && <TableHead className="w-24"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -320,13 +337,23 @@ export default function ProductsPage() {
                         </TableCell>
                         {canManage && (
                           <TableCell>
-                            <button
-                              onClick={() => editTarget?.id === product.id ? closeEdit() : openEdit(product)}
-                              className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                              title="Edit product"
-                            >
-                              {editTarget?.id === product.id ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-                            </button>
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => editTarget?.id === product.id ? closeEdit() : openEdit(product)}
+                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                                title="Edit product"
+                              >
+                                {editTarget?.id === product.id ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                              </button>
+                              <button
+                                onClick={(event) => handleDeleteProduct(event, product)}
+                                disabled={deletingProductId === product.id}
+                                className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 disabled:opacity-50"
+                                title="Delete product and stock"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </TableCell>
                         )}
                       </TableRow>

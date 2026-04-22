@@ -33,6 +33,7 @@ interface StockState {
   getAvailableStock: (productId: number) => Promise<StoredStock[]>;
   deductStockFIFO: (productId: number, quantity: number) => Promise<StoredStock[]>;
   updateStock: (id: string, quantity: number) => Promise<void>;
+  deleteStock: (id: string) => Promise<void>;
   syncStock: () => Promise<void>;
   updateProductStockSummary: (productId: number) => Promise<void>;
 }
@@ -382,6 +383,78 @@ export const useStockStore = create<StockState>((set, get) => ({
       set({ isLoading: false });
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
+    }
+  },
+
+  deleteStock: async (id: string) => {
+    set({ isLoading: true, error: null });
+    const existing = await db.stock.get(id);
+    if (existing) {
+      const pendingTransactions = await db.syncQueue.where("type").equals("TRANSACTION").toArray();
+      const hasPendingSale = pendingTransactions.some((item) =>
+        (item.data?.items || []).some((line: any) => Number(line.productId) === existing.productId)
+      );
+      if (hasPendingSale) {
+        const message = "Sync pending sales before deleting stock for this product";
+        set({ isLoading: false, error: message });
+        throw new Error(message);
+      }
+    }
+
+    try {
+      const token = useAuthStore.getState().token;
+      const headers: any = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/stock/batch/${id}`, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to delete stock batch");
+      }
+
+      await db.stock.delete(id);
+      set((state) => ({
+        stock: state.stock.filter((item) => item.id !== id),
+        isLoading: false,
+      }));
+      if (existing) {
+        await get().updateProductStockSummary(existing.productId);
+      }
+    } catch (error: any) {
+      if (!isOfflineFallbackError(error)) {
+        set({ error: error.message, isLoading: false });
+        throw error;
+      }
+
+      const pendingCreates = await db.syncQueue.where("type").equals("STOCK").toArray();
+      const pendingCreate = pendingCreates.find((item) => item.data?.localStockId === id);
+
+      if (pendingCreate) {
+        await db.syncQueue.delete(pendingCreate.id);
+      } else {
+        await db.syncQueue.put({
+          id: `sync_stock_delete_${id}`,
+          type: "STOCK",
+          action: "DELETE",
+          data: { id, productId: existing?.productId },
+          createdAt: Date.now(),
+          attempts: 0,
+        });
+      }
+
+      await db.stock.delete(id);
+      set((state) => ({
+        stock: state.stock.filter((item) => item.id !== id),
+        isLoading: false,
+        error: "Stock batch deleted offline - will sync when online",
+      }));
+      if (existing) {
+        await get().updateProductStockSummary(existing.productId);
+      }
     }
   },
 

@@ -114,6 +114,22 @@ export class StockService {
     return updated;
   }
 
+  async deactivateStockBatch(businessId: string, batchId: string) {
+    const batch = await prisma.stockBatch.findFirst({
+      where: { id: batchId, isActive: true, product: { businessId } },
+    });
+    if (!batch) throw new NotFoundError('Stock batch');
+
+    const updated = await prisma.stockBatch.update({
+      where: { id: batchId },
+      data: { isActive: false },
+      include: { product: true },
+    });
+
+    logger.info(`Batch ${batch.batchNumber} deactivated`);
+    return updated;
+  }
+
   async getLowStockProducts(businessId: string) {
     const products = await prisma.product.findMany({
       where: { businessId, isActive: true },
