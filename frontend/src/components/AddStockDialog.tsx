@@ -206,121 +206,123 @@ export function AddStockDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-[520px]">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Add Stock</DialogTitle>
           <DialogDescription>
             Add a new stock batch for a product. Stock is tracked in FIFO order.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          {!initialProductId && (
-            <div className="space-y-2">
-              <Label htmlFor="product">Product</Label>
-              <select
-                id="product"
-                value={formData.productId}
-                onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
-                className="w-full px-3 py-2 border rounded-md bg-background text-sm"
-              >
-                <option value="">Select a product...</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {initialProductId && (
-            <div className="p-2 bg-muted rounded-md text-sm">
-              <strong>Product:</strong> {initialProductName}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="quantity">Quantity</Label>
-            <Input
-              id="quantity"
-              type="number"
-              placeholder="0"
-              min="1"
-              step="1"
-              value={formData.quantity}
-              onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-              disabled={isSubmitting || isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="unitCost">Unit Cost (Buying Price)</Label>
-            <Input
-              id="unitCost"
-              type="number"
-              placeholder="0.00"
-              min="0.01"
-              step="0.01"
-              value={formData.unitCost}
-              onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
-              disabled={isSubmitting || isLoading}
-            />
-            <p className="text-xs text-muted-foreground">Used for product cost and profit reports.</p>
-          </div>
-
-          {profitPreview && (
-            <div
-              className={`rounded-md border p-3 text-sm ${
-                profitPreview.hasLoss
-                  ? 'border-red-200 bg-red-50 text-red-950 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-200'
-                  : 'border-green-200 bg-green-50 text-green-950 dark:border-green-900/60 dark:bg-green-950/20 dark:text-green-200'
-              }`}
-              aria-live="polite"
-            >
-              <div className="mb-2 font-semibold">Profit Preview</div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <ProfitLineCard title="Retail" line={profitPreview.retail} />
-                <ProfitLineCard title="Wholesale" line={profitPreview.wholesale} />
+            {!initialProductId && (
+              <div className="space-y-2">
+                <Label htmlFor="product">Product</Label>
+                <select
+                  id="product"
+                  value={formData.productId}
+                  onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-md bg-background text-sm"
+                >
+                  <option value="">Select a product...</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              {profitPreview.lossMessages.length > 0 && (
-                <div className="mt-2 rounded-md border border-red-200 bg-red-100 p-2 text-xs font-medium text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
-                  {profitPreview.lossMessages.join(' ')}
-                </div>
-              )}
+            )}
+
+            {initialProductId && (
+              <div className="p-2 bg-muted rounded-md text-sm">
+                <strong>Product:</strong> {initialProductName}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                placeholder="0"
+                min="1"
+                step="1"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                disabled={isSubmitting || isLoading}
+              />
             </div>
-          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="expiryDate">Expiry Date (Optional)</Label>
-            <Input
-              id="expiryDate"
-              type="date"
-              value={formData.expiryDate}
-              onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
-              disabled={isSubmitting || isLoading}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="unitCost">Unit Cost (Buying Price)</Label>
+              <Input
+                id="unitCost"
+                type="number"
+                placeholder="0.00"
+                min="0.01"
+                step="0.01"
+                value={formData.unitCost}
+                onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
+                disabled={isSubmitting || isLoading}
+              />
+              <p className="text-xs text-muted-foreground">Used for product cost and profit reports.</p>
+            </div>
+
+            {profitPreview && (
+              <div
+                className={`rounded-md border p-3 text-sm ${
+                  profitPreview.hasLoss
+                    ? 'border-red-200 bg-red-50 text-red-950 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-200'
+                    : 'border-green-200 bg-green-50 text-green-950 dark:border-green-900/60 dark:bg-green-950/20 dark:text-green-200'
+                }`}
+                aria-live="polite"
+              >
+                <div className="mb-2 font-semibold">Profit Preview</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <ProfitLineCard title="Retail" line={profitPreview.retail} />
+                  <ProfitLineCard title="Wholesale" line={profitPreview.wholesale} />
+                </div>
+                {profitPreview.lossMessages.length > 0 && (
+                  <div className="mt-2 rounded-md border border-red-200 bg-red-100 p-2 text-xs font-medium text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+                    {profitPreview.lossMessages.join(' ')}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="expiryDate">Expiry Date (Optional)</Label>
+              <Input
+                id="expiryDate"
+                type="date"
+                value={formData.expiryDate}
+                onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
+                disabled={isSubmitting || isLoading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Input
+                id="notes"
+                placeholder="e.g., supplier info, location"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                disabled={isSubmitting || isLoading}
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes (Optional)</Label>
-            <Input
-              id="notes"
-              placeholder="e.g., supplier info, location"
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              disabled={isSubmitting || isLoading}
-            />
-          </div>
-
-          <div className="flex gap-3 justify-end">
+          <div className="mt-4 flex shrink-0 gap-3 border-t pt-4 justify-end">
             <Button
               type="button"
               variant="outline"
