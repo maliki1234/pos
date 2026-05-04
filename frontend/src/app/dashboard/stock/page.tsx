@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useProductsStore } from '@/stores/useProductsStore';
 import { useStockStore } from '@/stores/useStockStore';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useStoreStore } from '@/stores/useStoreStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -75,7 +76,9 @@ export default function StockPage() {
   const { products, loadProducts } = useProductsStore();
   const { stock, lowStockProducts, loadStockByProduct, addStock, fetchLowStockProducts, setReorderPoint, deleteStock } = useStockStore();
   const { user } = useAuthStore();
+  const { stores, fetchStores } = useStoreStore();
   const canManage = user?.role === "ADMIN" || user?.role === "MANAGER";
+  const [selectedStoreId, setSelectedStoreId] = useState("");
   const [reorderEdits, setReorderEdits] = useState<Record<number, string>>({});
   const [savingReorder, setSavingReorder] = useState<Record<number, boolean>>({});
   const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null);
@@ -98,6 +101,17 @@ export default function StockPage() {
     .sort((a, b) => (a.days ?? 0) - (b.days ?? 0));
 
   useEffect(() => {
+    fetchStores();
+  }, [fetchStores]);
+
+  useEffect(() => {
+    if (!selectedStoreId && stores.length > 0) {
+      setSelectedStoreId(user?.storeId || stores.find((store) => store.isDefault)?.id || stores[0].id);
+    }
+  }, [selectedStoreId, stores, user?.storeId]);
+
+  useEffect(() => {
+    if (!selectedStoreId) return;
     /**
      * Initializes the stock page by loading all products and their stock data.
      * Fetches products from the store and then loads stock batches for each product.
@@ -106,11 +120,11 @@ export default function StockPage() {
     const initializeData = async () => {
       setIsLoading(true);
       try {
-        await loadProducts();
+        await loadProducts(selectedStoreId);
         // Load stock for all products
         if (products.length > 0) {
           for (const product of products) {
-            await loadStockByProduct(product.id);
+            await loadStockByProduct(product.id, selectedStoreId);
           }
         }
       } finally {
@@ -119,8 +133,8 @@ export default function StockPage() {
     };
 
     initializeData();
-    fetchLowStockProducts();
-  }, [loadProducts, loadStockByProduct, products.length]);
+    fetchLowStockProducts(selectedStoreId);
+  }, [loadProducts, loadStockByProduct, products.length, selectedStoreId, fetchLowStockProducts]);
 
   /**
    * Effect to update stock view whenever stock data or products change.
@@ -182,8 +196,8 @@ export default function StockPage() {
   }) => {
     setIsSubmitting(true);
     try {
-      await addStock(data);
-      await loadStockByProduct(data.productId);
+      await addStock({ ...data, storeId: selectedStoreId });
+      await loadStockByProduct(data.productId, selectedStoreId);
     } finally {
       setIsSubmitting(false);
     }
@@ -200,7 +214,7 @@ export default function StockPage() {
     if (isNaN(val) || val < 0) return;
     setSavingReorder((s) => ({ ...s, [productId]: true }));
     try {
-      await setReorderPoint(productId, val);
+      await setReorderPoint(productId, val, selectedStoreId);
     } finally {
       setSavingReorder((s) => ({ ...s, [productId]: false }));
       setReorderEdits((e) => { const n = { ...e }; delete n[productId]; return n; });
@@ -256,16 +270,27 @@ export default function StockPage() {
           <h1 className="text-3xl font-bold">Stock Management</h1>
           <p className="text-muted-foreground mt-1">Track inventory batches in FIFO order</p>
         </div>
-        <Button
-          onClick={() => {
-            setSelectedProductId(undefined);
-            setIsDialogOpen(true);
-          }}
-          className="gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add Stock
-        </Button>
+        <div className="flex items-center gap-2">
+          {stores.length > 0 && (
+            <select
+              value={selectedStoreId}
+              onChange={(event) => setSelectedStoreId(event.target.value)}
+              className="h-10 rounded-md border bg-background px-3 text-sm"
+            >
+              {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+            </select>
+          )}
+          <Button
+            onClick={() => {
+              setSelectedProductId(undefined);
+              setIsDialogOpen(true);
+            }}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Add Stock
+          </Button>
+        </div>
       </div>
 
       {/* Low Stock Alerts */}

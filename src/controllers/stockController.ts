@@ -6,6 +6,7 @@ import logger from '../utils/logger.js';
 
 const addStockBatchSchema = Joi.object({
   productId: Joi.number().required(),
+  storeId: Joi.string().uuid().optional(),
   quantity: Joi.number().integer().positive().required(),
   unitCost: Joi.number().positive().required(),
   expiryDate: Joi.date().optional(),
@@ -21,17 +22,18 @@ const updateBatchSchema = Joi.object({
 
 export const getStockBatches = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { productId } = req.query;
+    const { productId, storeId } = req.query;
+    const selectedStoreId = typeof storeId === 'string' && storeId ? storeId : undefined;
 
     if (!productId) {
-      const batches = await stockService.getAllStockBatches(req.user!.businessId);
+      const batches = await stockService.getAllStockBatches(req.user!.businessId, selectedStoreId);
       return res.json({
         success: true,
         data: batches,
       });
     }
 
-    const batches = await stockService.getStockBatches(req.user!.businessId, Number(productId));
+    const batches = await stockService.getStockBatches(req.user!.businessId, Number(productId), selectedStoreId);
 
     res.json({
       success: true,
@@ -53,6 +55,7 @@ export const addStockBatch = async (req: Request, res: Response, next: NextFunct
     const batch = await stockService.addStockBatch(
       req.user!.businessId,
       value.productId,
+      value.storeId,
       value.quantity,
       value.unitCost,
       value.expiryDate ? new Date(value.expiryDate) : undefined,
@@ -73,13 +76,17 @@ export const addStockBatch = async (req: Request, res: Response, next: NextFunct
 
 export const getTotalQuantity = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { productId } = req.query;
+    const { productId, storeId } = req.query;
 
     if (!productId) {
       return next(new ValidationError('productId query parameter is required'));
     }
 
-    const totalQuantity = await stockService.getTotalQuantity(Number(productId));
+    const selectedStoreId = await stockService.resolveStoreId(
+      req.user!.businessId,
+      typeof storeId === 'string' && storeId ? storeId : undefined
+    );
+    const totalQuantity = await stockService.getTotalQuantity(Number(productId), selectedStoreId);
 
     res.json({
       success: true,
@@ -92,7 +99,7 @@ export const getTotalQuantity = async (req: Request, res: Response, next: NextFu
 
 export const deductStock = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { productId, quantity } = req.body;
+    const { productId, quantity, storeId } = req.body;
 
     if (!productId || quantity === undefined) {
       return next(new ValidationError('productId and quantity are required'));
@@ -102,7 +109,8 @@ export const deductStock = async (req: Request, res: Response, next: NextFunctio
       return next(new ValidationError('quantity must be a positive number'));
     }
 
-    const usedBatches = await stockService.deductStockFIFO(productId, quantity);
+    const selectedStoreId = await stockService.resolveStoreId(req.user!.businessId, storeId);
+    const usedBatches = await stockService.deductStockFIFO(productId, selectedStoreId, quantity);
 
     logger.info(`Stock deducted (FIFO): Product ${productId}, Qty ${quantity}`);
 
@@ -179,7 +187,8 @@ export const getLowStockProducts = async (
   next: NextFunction
 ) => {
   try {
-    const lowStockProducts = await stockService.getLowStockProducts(req.user!.businessId);
+    const storeId = typeof req.query.storeId === 'string' && req.query.storeId ? req.query.storeId : undefined;
+    const lowStockProducts = await stockService.getLowStockProducts(req.user!.businessId, storeId);
     res.json({ success: true, data: lowStockProducts });
   } catch (error) {
     next(error);
@@ -209,7 +218,8 @@ export const getExpiredStockBatches = async (
   next: NextFunction
 ) => {
   try {
-    const expiredBatches = await stockService.getExpiredStockBatches(req.user!.businessId);
+    const storeId = typeof req.query.storeId === 'string' && req.query.storeId ? req.query.storeId : undefined;
+    const expiredBatches = await stockService.getExpiredStockBatches(req.user!.businessId, storeId);
 
     res.json({
       success: true,

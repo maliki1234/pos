@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useProductsStore } from "@/stores/useProductsStore";
 import { useCategoriesStore } from "@/stores/useCategoriesStore";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useStoreStore } from "@/stores/useStoreStore";
 import { useCurrencyStore } from "@/stores/useCurrencyStore";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,12 +24,14 @@ const EMPTY_EDIT = { name: "", description: "", barcode: "", categoryId: "", reo
 export default function ProductsPage() {
   const { products, isLoading, loadProducts, searchProducts, createProduct, deleteProduct } = useProductsStore();
   const { categories, loadCategories } = useCategoriesStore();
+  const { stores, fetchStores } = useStoreStore();
   const { token, user } = useAuthStore();
   const { currency } = useCurrencyStore();
   const fmt = (n: number) => `${currency.symbol}${Number(n).toLocaleString("en-KE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   const canManage = user?.role === "ADMIN" || user?.role === "MANAGER";
 
   const [query, setQuery] = useState("");
+  const [selectedStoreId, setSelectedStoreId] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -39,7 +42,17 @@ export default function ProductsPage() {
   const [editError, setEditError] = useState("");
   const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
 
-  useEffect(() => { loadProducts(); loadCategories(); }, []);
+  useEffect(() => { fetchStores(); loadCategories(); }, [fetchStores, loadCategories]);
+
+  useEffect(() => {
+    if (!selectedStoreId && stores.length > 0) {
+      setSelectedStoreId(user?.storeId || stores.find((store) => store.isDefault)?.id || stores[0].id);
+    }
+  }, [selectedStoreId, stores, user?.storeId]);
+
+  useEffect(() => {
+    if (selectedStoreId) loadProducts(selectedStoreId);
+  }, [loadProducts, selectedStoreId]);
 
   const authHeaders = useCallback(() => ({
     "Content-Type": "application/json",
@@ -48,13 +61,13 @@ export default function ProductsPage() {
 
   const handleSearch = async (value: string) => {
     setQuery(value);
-    if (value.trim()) { await searchProducts(value); } else { await loadProducts(); }
+    if (value.trim()) { await searchProducts(value, selectedStoreId); } else { await loadProducts(selectedStoreId); }
   };
 
   const handleAddProduct = async (data: any) => {
     setIsSubmitting(true);
     try {
-      await createProduct(data);
+      await createProduct({ ...data, storeId: selectedStoreId });
       toast.success("Product added successfully!");
       setIsDialogOpen(false);
     } catch (error: any) {
@@ -148,7 +161,7 @@ export default function ProductsPage() {
 
       toast.success("Product updated");
       closeEdit();
-      loadProducts();
+      loadProducts(selectedStoreId);
     } catch (err: any) {
       setEditError(err.message);
     } finally {
@@ -167,9 +180,20 @@ export default function ProductsPage() {
           <p className="text-muted-foreground">Manage your product catalog</p>
         </div>
         {canManage && (
-          <Button size="lg" className="gap-2" onClick={() => setIsDialogOpen(true)}>
-            <Plus className="h-4 w-4" /> Add Product
-          </Button>
+          <div className="flex items-center gap-2">
+            {stores.length > 0 && (
+              <select
+                value={selectedStoreId}
+                onChange={(event) => setSelectedStoreId(event.target.value)}
+                className="h-11 rounded-md border bg-background px-3 text-sm"
+              >
+                {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+              </select>
+            )}
+            <Button size="lg" className="gap-2" onClick={() => setIsDialogOpen(true)}>
+              <Plus className="h-4 w-4" /> Add Product
+            </Button>
+          </div>
         )}
       </div>
 

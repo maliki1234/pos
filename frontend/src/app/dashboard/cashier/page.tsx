@@ -37,13 +37,14 @@ export default function CashierPage() {
     items, addItem, removeItem, updateItem, totalAmount, subtotal, taxAmount, discountAmount,
     submitTransaction, pricingType, setPricingType,
     paymentMethod, setPaymentMethod, dueDate, setDueDate,
-    setCustomer, setStore, loyaltyPointsToRedeem, setLoyaltyRedemption,
+    setCustomer, setStore, storeId, loyaltyPointsToRedeem, setLoyaltyRedemption,
   } = useCartStore();
   const { products, isLoading, searchProducts, loadProducts } = useProductsStore();
   const { isOnline } = useSyncStore();
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
   const { stores } = useStoreStore();
   const hasMultipleStores = stores.length > 1;
+  const activeStoreId = storeId || user?.storeId || stores.find((store) => store.isDefault)?.id || stores[0]?.id || "";
   const { currency } = useCurrencyStore();
   const { settings, fetchSettings } = useSettingsStore();
   const { t } = useLangStore();
@@ -123,8 +124,12 @@ export default function CashierPage() {
 
   useEffect(() => {
     fetchSettings();
-    loadProducts();
-  }, [fetchSettings, loadProducts]);
+    if (activeStoreId) loadProducts(activeStoreId);
+  }, [fetchSettings, loadProducts, activeStoreId]);
+
+  useEffect(() => {
+    if (!storeId && activeStoreId) setStore(activeStoreId);
+  }, [activeStoreId, setStore, storeId]);
 
   const handleCustomerSearch = async (value: string) => {
     setCustomerQuery(value);
@@ -243,9 +248,9 @@ export default function CashierPage() {
   const handleSearch = async (value: string) => {
     setQuery(value);
     if (value.trim()) {
-      await searchProducts(value);
+      await searchProducts(value, activeStoreId);
     } else {
-      await useProductsStore.getState().loadProducts();
+      await useProductsStore.getState().loadProducts(activeStoreId);
     }
   };
 
@@ -419,9 +424,8 @@ export default function CashierPage() {
       <div className="flex min-h-[30rem] flex-1 flex-col rounded-xl border bg-background lg:min-h-0 lg:rounded-none lg:border-0">
         <div className="flex flex-col gap-3 border-b bg-card px-3 py-3 shrink-0 sm:flex-row sm:flex-wrap sm:items-center sm:px-5 sm:py-4">
           {hasMultipleStores && (
-            <select onChange={e => setStore(e.target.value)} defaultValue=""
+            <select value={activeStoreId} onChange={e => { setStore(e.target.value); void loadProducts(e.target.value); }} 
               className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary sm:w-auto">
-              <option value="">All Stores</option>
               {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           )}

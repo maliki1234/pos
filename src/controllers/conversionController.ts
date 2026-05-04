@@ -2,18 +2,21 @@ import { Request, Response, NextFunction } from 'express';
 import Joi from 'joi';
 import { prisma } from '../utils/prisma.js';
 import { ValidationError, NotFoundError } from '../utils/errors.js';
+import { stockService } from '../services/stockService.js';
 
 const bid = (req: Request) => req.user!.businessId;
 
 const convertSchema = Joi.object({
   fromProductId: Joi.number().integer().required(),
   toProductId:   Joi.number().integer().required(),
+  storeId:       Joi.string().uuid().optional(),
   quantityIn:    Joi.number().integer().min(1).required(),
   notes:         Joi.string().allow('').optional(),
 });
 
 const simulateSchema = Joi.object({
   fromProductId: Joi.number().integer().required(),
+  storeId: Joi.string().uuid().optional(),
   scenarios: Joi.array().items(Joi.object({
     piecesCount:  Joi.number().integer().min(1).required(),
     sellingPrice: Joi.number().positive().required(),
@@ -41,17 +44,18 @@ export const convertStock = async (req: Request, res: Response, next: NextFuncti
   try {
     const { error, value } = convertSchema.validate(req.body);
     if (error) return next(new ValidationError(error.details[0].message));
+    const storeId = await stockService.resolveStoreId(bid(req), value.storeId);
 
     // Load parent product with its stock
     const fromProduct = await prisma.product.findFirst({
-      where: { id: value.fromProductId, businessId: bid(req) },
-      include: { stock: { where: { isActive: true }, orderBy: { receivedDate: 'asc' } } },
+      where: { id: value.fromProductId, businessId: bid(req), storeId },
+      include: { stock: { where: { isActive: true, storeId }, orderBy: { receivedDate: 'asc' } } },
     });
     if (!fromProduct) return next(new NotFoundError('Source product not found'));
 
     // Load child product
     const toProduct = await prisma.product.findFirst({
-      where: { id: value.toProductId, businessId: bid(req) },
+      where: { id: value.toProductId, businessId: bid(req), storeId },
     });
     if (!toProduct) return next(new NotFoundError('Target product not found'));
 
@@ -103,12 +107,13 @@ export const convertStock = async (req: Request, res: Response, next: NextFuncti
 
       // Add child stock batch
       const lastBatch = await tx.stockBatch.findFirst({
-        where: { productId: value.toProductId },
+        where: { productId: value.toProductId, storeId },
         orderBy: { batchNumber: 'desc' },
       });
       await tx.stockBatch.create({
         data: {
           productId:    value.toProductId,
+          storeId,
           batchNumber:  (lastBatch?.batchNumber ?? 0) + 1,
           quantity:     quantityOut,
           quantityUsed: 0,
@@ -152,10 +157,11 @@ export const simulateConversion = async (req: Request, res: Response, next: Next
   try {
     const { error, value } = simulateSchema.validate(req.body);
     if (error) return next(new ValidationError(error.details[0].message));
+    const storeId = await stockService.resolveStoreId(bid(req), value.storeId);
 
     const fromProduct = await prisma.product.findFirst({
-      where: { id: value.fromProductId, businessId: bid(req) },
-      include: { stock: { where: { isActive: true } } },
+      where: { id: value.fromProductId, businessId: bid(req), storeId },
+      include: { stock: { where: { isActive: true, storeId } } },
     });
     if (!fromProduct) return next(new NotFoundError('Product not found'));
 

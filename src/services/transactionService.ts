@@ -51,6 +51,7 @@ export class TransactionService {
     const txn = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findFirst({ where: { id: data.userId, businessId: data.businessId } });
       if (!user) throw new NotFoundError('User');
+      const storeId = await stockService.resolveStoreId(data.businessId, data.storeId ?? user.storeId, tx);
 
       let customer = null;
       if (data.customerId) {
@@ -71,10 +72,10 @@ export class TransactionService {
       }
 
       for (const item of data.items) {
-        const product = await tx.product.findFirst({ where: { id: item.productId, businessId: data.businessId } });
+        const product = await tx.product.findFirst({ where: { id: item.productId, businessId: data.businessId, storeId } });
         if (!product) throw new NotFoundError(`Product with ID ${item.productId}`);
 
-        await stockService.deductStockFIFO(item.productId, item.quantity, tx);
+        await stockService.deductStockFIFO(item.productId, storeId, item.quantity, tx);
 
         const customerType = customer?.customerType ?? 'RETAIL';
         const pricing = await priceService.calculateLineTotal(item.productId, customerType, item.quantity, tx);
@@ -104,7 +105,7 @@ export class TransactionService {
       const transaction = await tx.transaction.create({
         data: {
           businessId: data.businessId,
-          storeId: data.storeId ?? null,
+          storeId,
           transactionNo: this.generateTransactionNo(),
           customerId: data.customerId,
           userId: data.userId,
@@ -274,7 +275,8 @@ export class TransactionService {
     return prisma.$transaction(async (tx) => {
       // Restore stock for each returned item
       for (const ri of returnItems) {
-        await stockService.returnStock(ri.productId, ri.quantity, tx, `Return from ${original.transactionNo}: ${reason}`);
+        const storeId = await stockService.resolveStoreId(businessId, original.storeId, tx);
+        await stockService.returnStock(ri.productId, storeId, ri.quantity, tx, `Return from ${original.transactionNo}: ${reason}`);
       }
 
       // Calculate return total
@@ -327,7 +329,8 @@ export class TransactionService {
 
     await prisma.$transaction(async (tx) => {
       for (const item of transaction.items) {
-        await stockService.returnStock(item.productId, item.quantity, tx, `Void of ${transaction.transactionNo}: ${reason}`);
+        const storeId = await stockService.resolveStoreId(businessId, transaction.storeId, tx);
+        await stockService.returnStock(item.productId, storeId, item.quantity, tx, `Void of ${transaction.transactionNo}: ${reason}`);
       }
 
       await tx.transaction.update({

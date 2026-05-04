@@ -19,23 +19,34 @@ interface StockState {
   error: string | null;
 
   // Actions
-  loadStockByProduct: (productId: number) => Promise<void>;
-  fetchLowStockProducts: () => Promise<void>;
-  setReorderPoint: (productId: number, reorderPoint: number) => Promise<void>;
+  loadStockByProduct: (productId: number, storeId?: string) => Promise<void>;
+  fetchLowStockProducts: (storeId?: string) => Promise<void>;
+  setReorderPoint: (productId: number, reorderPoint: number, storeId?: string) => Promise<void>;
   addStock: (data: {
     productId: number;
+    storeId?: string;
     quantity: number;
     unitCost: number;
     expiryDate?: Date;
     notes?: string;
   }) => Promise<void>;
-  getTotalQuantity: (productId: number) => Promise<number>;
-  getAvailableStock: (productId: number) => Promise<StoredStock[]>;
-  deductStockFIFO: (productId: number, quantity: number) => Promise<StoredStock[]>;
+  getTotalQuantity: (productId: number, storeId?: string) => Promise<number>;
+  getAvailableStock: (productId: number, storeId?: string) => Promise<StoredStock[]>;
+  deductStockFIFO: (productId: number, quantity: number, storeId?: string) => Promise<StoredStock[]>;
   updateStock: (id: string, quantity: number) => Promise<void>;
   deleteStock: (id: string) => Promise<void>;
   syncStock: () => Promise<void>;
-  updateProductStockSummary: (productId: number) => Promise<void>;
+  updateProductStockSummary: (productId: number, storeId?: string) => Promise<void>;
+}
+
+function withStoreParam(url: string, storeId?: string) {
+  if (!storeId) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}storeId=${encodeURIComponent(storeId)}`;
+}
+
+function stockMatchesStore(item: StoredStock, storeId?: string) {
+  return !storeId || item.storeId === storeId;
 }
 
 /**
@@ -52,9 +63,10 @@ export const useStockStore = create<StockState>((set, get) => ({
 
   // Keep the product summary in sync because the cashier reads stock from
   // product.stock.quantity, not directly from the stock batch table.
-  updateProductStockSummary: async (productId: number) => {
+  updateProductStockSummary: async (productId: number, storeId?: string) => {
     const stockItems = await db.stock.where("productId").equals(productId).toArray();
-    const stockTableQuantity = stockItems.reduce((sum, item) => {
+    const scopedStockItems = stockItems.filter((item) => stockMatchesStore(item, storeId));
+    const stockTableQuantity = scopedStockItems.reduce((sum, item) => {
       if (!item.isActive) return sum;
       return sum + Math.max(0, Number(item.quantity) - Number(item.quantityUsed || 0));
     }, 0);
@@ -62,13 +74,14 @@ export const useStockStore = create<StockState>((set, get) => ({
     if (product) {
       const queuedTransactions = await db.syncQueue.where("type").equals("TRANSACTION").toArray();
       const pendingTransactionQuantity = queuedTransactions.reduce((sum, item) => {
+        if (storeId && item.data?.storeId !== storeId) return sum;
         const quantity = (item.data?.items || []).reduce((lineSum: number, line: any) => {
           return Number(line.productId) === productId ? lineSum + Number(line.quantity || 0) : lineSum;
         }, 0);
         return sum + quantity;
       }, 0);
       const fallbackQuantity = Number(product.stock?.serverQuantity ?? product.stock?.quantity ?? 0);
-      const baseQuantity = stockItems.length > 0 ? stockTableQuantity : fallbackQuantity;
+      const baseQuantity = scopedStockItems.length > 0 ? stockTableQuantity : fallbackQuantity;
       const totalQuantity = calculateAvailableQuantity({ baseQuantity, pendingTransactionQuantity });
       const stock = {
         ...product.stock,
@@ -85,12 +98,12 @@ export const useStockStore = create<StockState>((set, get) => ({
     }
   },
 
-  fetchLowStockProducts: async () => {
+  fetchLowStockProducts: async (storeId?: string) => {
     try {
       const token = useAuthStore.getState().token;
       const headers: any = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/stock/low-stock`, { headers });
+      const res = await fetch(withStoreParam(`${process.env.NEXT_PUBLIC_API_URL}/stock/low-stock`, storeId), { headers });
       if (!res.ok) return;
       const data = await res.json();
       const products: LowStockProduct[] = (data.data || []).map((p: any) => ({
@@ -105,7 +118,7 @@ export const useStockStore = create<StockState>((set, get) => ({
     }
   },
 
-  setReorderPoint: async (productId: number, reorderPoint: number) => {
+  setReorderPoint: async (productId: number, reorderPoint: number, storeId?: string) => {
     try {
       const token = useAuthStore.getState().token;
       const headers: any = { "Content-Type": "application/json" };
@@ -116,7 +129,7 @@ export const useStockStore = create<StockState>((set, get) => ({
       );
       if (!res.ok) throw new Error("Failed to update reorder point");
       // Refresh the low stock list
-      await get().fetchLowStockProducts();
+      await get().fetchLowStockProducts(storeId);
     } catch (err: any) {
       set({ error: err.message });
       throw err;
@@ -130,7 +143,7 @@ export const useStockStore = create<StockState>((set, get) => ({
    *
    * @param {string} productId - The ID of the product to load stock for
    */
-  loadStockByProduct: async (productId: number) => {
+  loadStockByProduct: async (productId: number, storeId?: string) => {
     set({ isLoading: true, error: null });
     try {
       const token = useAuthStore.getState().token;
@@ -139,7 +152,7 @@ export const useStockStore = create<StockState>((set, get) => ({
 
       // Try API first
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/stock?productId=${productId}`,
+        withStoreParam(`${process.env.NEXT_PUBLIC_API_URL}/stock?productId=${productId}`, storeId),
         { headers }
       );
 
@@ -151,6 +164,7 @@ export const useStockStore = create<StockState>((set, get) => ({
         const transformedStock = stockItems.map((item: any) => ({
           id: item.id,
           productId: item.productId,
+          storeId: item.storeId,
           batchNumber: item.batchNumber,
           quantity: item.quantity,
           quantityUsed: item.quantityUsed || 0,
@@ -163,19 +177,28 @@ export const useStockStore = create<StockState>((set, get) => ({
         }));
 
         await Promise.all(transformedStock.map((item: any) => db.stock.put(item)));
-        await get().updateProductStockSummary(productId);
-        set({ stock: transformedStock, isLoading: false });
+        await get().updateProductStockSummary(productId, storeId);
+        set((state) => ({
+          stock: [
+            ...state.stock.filter((item) => item.productId !== productId || !stockMatchesStore(item, storeId)),
+            ...transformedStock,
+          ],
+          isLoading: false,
+        }));
       } else {
         throw new Error("Failed to fetch stock");
       }
     } catch (error: any) {
       // Fall back to IndexedDB
-      const cached = await db.stock.where("productId").equals(productId).toArray();
-      set({
-        stock: cached,
+      const cached = (await db.stock.where("productId").equals(productId).toArray()).filter((item) => stockMatchesStore(item, storeId));
+      set((state) => ({
+        stock: [
+          ...state.stock.filter((item) => item.productId !== productId || !stockMatchesStore(item, storeId)),
+          ...cached,
+        ],
         error: cached.length > 0 ? "Using offline cache" : error.message,
         isLoading: false,
-      });
+      }));
     }
   },
 
@@ -196,6 +219,7 @@ export const useStockStore = create<StockState>((set, get) => ({
     set({ isLoading: true, error: null });
     const payload = {
       productId: data.productId,
+      storeId: data.storeId,
       quantity: data.quantity,
       unitCost: data.unitCost,
       expiryDate: data.expiryDate ? new Date(data.expiryDate).toISOString() : undefined,
@@ -224,6 +248,7 @@ export const useStockStore = create<StockState>((set, get) => ({
       const transformedStock: StoredStock = {
         id: newStock.id,
         productId: newStock.productId,
+        storeId: newStock.storeId,
         batchNumber: newStock.batchNumber.toString(),
         quantity: newStock.quantity,
         quantityUsed: 0,
@@ -238,8 +263,8 @@ export const useStockStore = create<StockState>((set, get) => ({
       };
 
       await db.stock.put(transformedStock);
-      await get().updateProductStockSummary(data.productId);
-      await get().loadStockByProduct(data.productId);
+      await get().updateProductStockSummary(data.productId, data.storeId);
+      await get().loadStockByProduct(data.productId, data.storeId);
       set({ isLoading: false });
     } catch (error: any) {
       if (!isOfflineFallbackError(error)) {
@@ -251,6 +276,7 @@ export const useStockStore = create<StockState>((set, get) => ({
       const offlineStock: StoredStock = {
         id: offlineId,
         productId: data.productId,
+        storeId: data.storeId,
         batchNumber: `OFFLINE-${Date.now()}`, // Will be replaced when synced
         quantity: data.quantity,
         quantityUsed: 0,
@@ -274,8 +300,8 @@ export const useStockStore = create<StockState>((set, get) => ({
         createdAt: Date.now(),
         attempts: 0,
       });
-      await get().updateProductStockSummary(data.productId);
-      await get().loadStockByProduct(data.productId);
+      await get().updateProductStockSummary(data.productId, data.storeId);
+      await get().loadStockByProduct(data.productId, data.storeId);
       set({ isLoading: false, error: "Stock saved offline - will sync when online" });
     }
   },
@@ -287,9 +313,11 @@ export const useStockStore = create<StockState>((set, get) => ({
    * @param {string} productId - ID of the product
    * @returns {Promise<number>} Total available quantity
    */
-  getTotalQuantity: async (productId: number) => {
+  getTotalQuantity: async (productId: number, storeId?: string) => {
     const stockItems = await db.stock.where("productId").equals(productId).toArray();
-    return stockItems.reduce((sum, item) => sum + (item.quantity - item.quantityUsed), 0);
+    return stockItems
+      .filter((item) => stockMatchesStore(item, storeId))
+      .reduce((sum, item) => sum + (item.quantity - item.quantityUsed), 0);
   },
 
   /**
@@ -300,12 +328,12 @@ export const useStockStore = create<StockState>((set, get) => ({
    * @param {string} productId - ID of the product
    * @returns {Promise<StoredStock[]>} Array of available stock batches in FIFO order
    */
-  getAvailableStock: async (productId: number) => {
+  getAvailableStock: async (productId: number, storeId?: string) => {
     // Get all active stock sorted by receivedDate (FIFO - oldest first)
     const stockItems = await db.stock
       .where("productId")
       .equals(productId)
-      .filter((item) => item.isActive && item.quantity > item.quantityUsed)
+      .filter((item) => stockMatchesStore(item, storeId) && item.isActive && item.quantity > item.quantityUsed)
       .toArray();
 
     // Sort by received date (oldest first) for FIFO
@@ -322,12 +350,12 @@ export const useStockStore = create<StockState>((set, get) => ({
    * @returns {Promise<StoredStock[]>} Array of stock batches that were used
    * @throws {Error} If insufficient stock is available
    */
-  deductStockFIFO: async (productId: number, quantity: number) => {
+  deductStockFIFO: async (productId: number, quantity: number, storeId?: string) => {
     let remainingQty = quantity;
     const usedStock: StoredStock[] = [];
 
     // Get available stock in FIFO order
-    const availableStock = await get().getAvailableStock(productId);
+    const availableStock = await get().getAvailableStock(productId, storeId);
 
     for (const stockItem of availableStock) {
       if (remainingQty <= 0) break;
@@ -338,7 +366,7 @@ export const useStockStore = create<StockState>((set, get) => ({
       // Update stock
       stockItem.quantityUsed += qtyToUse;
       await db.stock.put(stockItem);
-      await get().updateProductStockSummary(productId);
+      await get().updateProductStockSummary(productId, storeId);
       usedStock.push(stockItem);
 
       remainingQty -= qtyToUse;
@@ -378,7 +406,7 @@ export const useStockStore = create<StockState>((set, get) => ({
       const stock = await db.stock.get(id);
       if (stock) {
         await db.stock.put({ ...stock, quantity });
-        await get().updateProductStockSummary(stock.productId);
+        await get().updateProductStockSummary(stock.productId, stock.storeId);
       }
       set({ isLoading: false });
     } catch (error: any) {
@@ -422,7 +450,7 @@ export const useStockStore = create<StockState>((set, get) => ({
         isLoading: false,
       }));
       if (existing) {
-        await get().updateProductStockSummary(existing.productId);
+        await get().updateProductStockSummary(existing.productId, existing.storeId);
       }
     } catch (error: any) {
       if (!isOfflineFallbackError(error)) {
@@ -453,7 +481,7 @@ export const useStockStore = create<StockState>((set, get) => ({
         error: "Stock batch deleted offline - will sync when online",
       }));
       if (existing) {
-        await get().updateProductStockSummary(existing.productId);
+        await get().updateProductStockSummary(existing.productId, existing.storeId);
       }
     }
   },
@@ -477,6 +505,7 @@ export const useStockStore = create<StockState>((set, get) => ({
         const transformedStock = stockItems.map((item: any) => ({
           id: item.id,
           productId: item.productId,
+          storeId: item.storeId,
           batchNumber: item.batchNumber,
           quantity: item.quantity,
           quantityUsed: item.quantityUsed || 0,

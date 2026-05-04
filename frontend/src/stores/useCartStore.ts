@@ -297,7 +297,7 @@ export const useCartStore = create<CartState>()(
 
         await Promise.all(
           Array.from(requestedByProduct.keys()).map((productId) =>
-            useStockStore.getState().updateProductStockSummary(productId)
+            useStockStore.getState().updateProductStockSummary(productId, storeId)
           )
         );
 

@@ -5,8 +5,11 @@ import { ValidationError, NotFoundError } from '../utils/errors.js';
 import { priceService } from '../services/priceService.js';
 import { prisma } from '../utils/prisma.js';
 import logger from '../utils/logger.js';
+import { stockService } from '../services/stockService.js';
+import { buildProductWhere } from '../services/productScope.js';
 
 const createProductSchema = Joi.object({
+  storeId: Joi.string().uuid().optional(),
   name: Joi.string().required(),
   description: Joi.string().allow('').optional(),
   barcode: Joi.string().allow('').optional(),
@@ -41,17 +44,19 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
   try {
     const { error, value } = createProductSchema.validate(req.body);
     if (error) return next(new ValidationError(error.details[0].message));
+    const storeId = await stockService.resolveStoreId(bid(req), value.storeId);
 
     if (value.barcode) {
       const existing = await prisma.product.findFirst({
-        where: { businessId: bid(req), barcode: value.barcode },
+        where: { businessId: bid(req), storeId, barcode: value.barcode },
       });
-      if (existing) return next(new ValidationError('Barcode already exists'));
+      if (existing) return next(new ValidationError('Barcode already exists in this store'));
     }
 
     const product = await prisma.product.create({
       data: {
         businessId: bid(req),
+        storeId,
         name: value.name,
         description: value.description || null,
         barcode: value.barcode || null,
@@ -79,11 +84,15 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
 export const getProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const storeId = await stockService.resolveStoreId(
+      bid(req),
+      typeof req.query.storeId === 'string' && req.query.storeId ? req.query.storeId : undefined
+    );
     const product = await prisma.product.findFirst({
-      where: { id: parseInt(req.params.id), businessId: bid(req) },
+      where: { id: parseInt(req.params.id), businessId: bid(req), storeId },
       include: {
         category: true,
-        stock: { where: { isActive: true }, orderBy: { receivedDate: 'asc' } },
+        stock: { where: { isActive: true, storeId }, orderBy: { receivedDate: 'asc' } },
         prices: { where: { isActive: true }, orderBy: { minQuantity: 'asc' } },
       },
     });
@@ -96,22 +105,25 @@ export const getProduct = async (req: Request, res: Response, next: NextFunction
 export const listProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { categoryId, search, skip = 0, take = 50 } = req.query;
+    const storeId = await stockService.resolveStoreId(
+      bid(req),
+      typeof req.query.storeId === 'string' && req.query.storeId ? req.query.storeId : undefined
+    );
 
-    const where: any = { businessId: bid(req), isActive: true };
-    if (categoryId) where.categoryId = categoryId;
-    if (search) {
-      where.OR = [
-        { name: { contains: search as string, mode: 'insensitive' } },
-        { barcode: { contains: search as string, mode: 'insensitive' } },
-      ];
-    }
+    const where = buildProductWhere(bid(req), storeId, {
+      categoryId: typeof categoryId === 'string' ? categoryId : undefined,
+      search: typeof search === 'string' ? search : undefined,
+    });
 
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
         include: {
           category: true,
-          stock: { where: { isActive: true }, select: { id: true, batchNumber: true, quantity: true, quantityUsed: true, expiryDate: true } },
+          stock: {
+            where: { isActive: true, storeId },
+            select: { id: true, storeId: true, batchNumber: true, quantity: true, quantityUsed: true, expiryDate: true },
+          },
           prices: { where: { isActive: true } },
         },
         skip: parseInt(skip as string) || 0,
@@ -135,15 +147,15 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 
     if (value.barcode) {
       const barcodeConflict = await prisma.product.findFirst({
-        where: { businessId: bid(req), barcode: value.barcode, id: { not: parseInt(req.params.id) } },
+        where: { businessId: bid(req), storeId: existing.storeId, barcode: value.barcode, id: { not: parseInt(req.params.id) } },
       });
-      if (barcodeConflict) return next(new ValidationError('Barcode already exists'));
+      if (barcodeConflict) return next(new ValidationError('Barcode already exists in this store'));
     }
 
     const product = await prisma.product.update({
       where: { id: parseInt(req.params.id) },
       data: value,
-      include: { category: true, prices: true, stock: { where: { isActive: true } } },
+      include: { category: true, prices: true, stock: { where: { isActive: true, storeId: existing.storeId } } },
     });
 
     logger.info(`Product updated: ${product.id}`);
@@ -163,7 +175,7 @@ export const deactivateProduct = async (req: Request, res: Response, next: NextF
 
     const product = await prisma.$transaction(async (tx) => {
       await tx.stockBatch.updateMany({
-        where: { productId, isActive: true },
+        where: { productId, storeId: existing.storeId, isActive: true },
         data: { isActive: false },
       });
 
@@ -173,7 +185,7 @@ export const deactivateProduct = async (req: Request, res: Response, next: NextF
         include: {
           category: true,
           prices: { where: { isActive: true } },
-          stock: { where: { isActive: true } },
+          stock: { where: { isActive: true, storeId: existing.storeId } },
         },
       });
     });

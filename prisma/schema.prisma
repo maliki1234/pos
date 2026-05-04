@@ -78,6 +78,8 @@ model Store {
   transactions          Transaction[]
   reconciliationReports ReconciliationReport[]
   expenses              Expense[]
+  stockBatches          StockBatch[]
+  products              Product[]
 
   @@index([businessId])
   @@map("stores")
@@ -203,6 +205,8 @@ model Product {
   id             Int        @id @default(autoincrement())
   businessId     String
   business       Business   @relation(fields: [businessId], references: [id])
+  storeId        String
+  store          Store      @relation(fields: [storeId], references: [id])
   name           String
   description    String?
   barcode        String?
@@ -226,8 +230,9 @@ model Product {
   conversionsFrom      StockConversion[]   @relation("ConversionFrom")
   conversionsTo        StockConversion[]   @relation("ConversionTo")
 
-  @@unique([businessId, barcode])
+  @@unique([businessId, storeId, barcode])
   @@index([businessId])
+  @@index([storeId])
   @@map("products")
 }
 
@@ -237,6 +242,8 @@ model StockBatch {
   id           String    @id @default(uuid())
   productId    Int
   product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storeId      String
+  store        Store     @relation(fields: [storeId], references: [id])
   batchNumber  Int       @default(autoincrement())
   quantity     Int       @default(0)
   quantityUsed Int       @default(0)
@@ -248,8 +255,9 @@ model StockBatch {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  @@unique([productId, batchNumber])
+  @@unique([productId, storeId, batchNumber])
   @@index([productId])
+  @@index([storeId])
   @@index([receivedDate])
   @@index([expiryDate])
   @@map("stock_batches")

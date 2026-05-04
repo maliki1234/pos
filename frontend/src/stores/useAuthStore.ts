@@ -8,6 +8,7 @@ interface User {
   email: string;
   name: string;
   role: "ADMIN" | "MANAGER" | "CASHIER";
+  storeId?: string | null;
   businessId: string;
   businessName: string;
   currency?: string;
@@ -50,6 +51,7 @@ async function saveSession(token: string, user: User) {
     email: user.email,
     name: user.name,
     role: user.role,
+    storeId: user.storeId,
     token,
     expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
   });
@@ -196,6 +198,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 email: stored.email,
                 name: stored.name,
                 role: stored.role,
+                storeId: stored.storeId,
               },
               token: stored.token,
             });
@@ -214,6 +217,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             email: stored.email,
             name: stored.name,
             role: stored.role,
+            storeId: stored.storeId,
           },
           token: stored.token,
           isAuthenticated: true,

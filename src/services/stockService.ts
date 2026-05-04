@@ -5,20 +5,48 @@ import { prisma } from '../utils/prisma.js';
 import { getStockProfitValidation } from './stockProfitValidation.js';
 
 type TxClient = Prisma.TransactionClient;
+type DbClient = typeof prisma | TxClient;
+
+export function buildStockBatchWhere(businessId: string, productId?: number, storeId?: string): Prisma.StockBatchWhereInput {
+  return {
+    isActive: true,
+    ...(productId !== undefined ? { productId } : {}),
+    product: { businessId },
+    ...(storeId ? { storeId } : {}),
+  };
+}
 
 export class StockService {
-  async getAllStockBatches(businessId: string) {
+  async resolveStoreId(businessId: string, storeId?: string | null, tx?: TxClient): Promise<string> {
+    const db: DbClient = tx ?? prisma;
+    if (storeId) {
+      const store = await db.store.findFirst({ where: { id: storeId, businessId, isActive: true } });
+      if (!store) throw new NotFoundError('Store');
+      return store.id;
+    }
+
+    const defaultStore = await db.store.findFirst({
+      where: { businessId, isActive: true },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (!defaultStore) throw new ValidationError('Create a store before managing stock');
+    return defaultStore.id;
+  }
+
+  async getAllStockBatches(businessId: string, storeId?: string) {
+    const resolvedStoreId = await this.resolveStoreId(businessId, storeId);
     return prisma.stockBatch.findMany({
-      where: { isActive: true, product: { businessId } },
-      include: { product: true },
+      where: buildStockBatchWhere(businessId, undefined, resolvedStoreId),
+      include: { product: true, store: true },
       orderBy: [{ productId: 'asc' }, { receivedDate: 'asc' }],
     });
   }
 
-  async getStockBatches(businessId: string, productId: number) {
+  async getStockBatches(businessId: string, productId: number, storeId?: string) {
+    const resolvedStoreId = await this.resolveStoreId(businessId, storeId);
     const batches = await prisma.stockBatch.findMany({
-      where: { productId, isActive: true, product: { businessId } },
-      include: { product: true },
+      where: buildStockBatchWhere(businessId, productId, resolvedStoreId),
+      include: { product: true, store: true },
       orderBy: { receivedDate: 'asc' },
     });
     return batches;
@@ -27,13 +55,15 @@ export class StockService {
   async addStockBatch(
     businessId: string,
     productId: number,
+    storeId: string | undefined,
     quantity: number,
     unitCost: number,
     expiryDate?: Date,
     notes?: string
   ) {
+    const resolvedStoreId = await this.resolveStoreId(businessId, storeId);
     const product = await prisma.product.findFirst({
-      where: { id: productId, businessId },
+      where: { id: productId, businessId, storeId: resolvedStoreId },
       include: { prices: { where: { isActive: true } } },
     });
     if (!product) throw new NotFoundError('Product');
@@ -44,27 +74,27 @@ export class StockService {
     }
 
     const batch = await prisma.stockBatch.create({
-      data: { productId, quantity, quantityUsed: 0, unitCost, expiryDate, notes, isActive: true },
-      include: { product: true },
+      data: { productId, storeId: resolvedStoreId, quantity, quantityUsed: 0, unitCost, expiryDate, notes, isActive: true },
+      include: { product: true, store: true },
     });
 
     logger.info(`Stock batch added: Product ${productId}, Batch #${batch.batchNumber}, Qty ${quantity}`);
     return batch;
   }
 
-  async getTotalQuantity(productId: number, tx?: TxClient): Promise<number> {
+  async getTotalQuantity(productId: number, storeId: string, tx?: TxClient): Promise<number> {
     const db = tx ?? prisma;
-    const batches = await db.stockBatch.findMany({ where: { productId, isActive: true } });
+    const batches = await db.stockBatch.findMany({ where: { productId, storeId, isActive: true } });
     return batches.reduce((sum, batch) => sum + (batch.quantity - batch.quantityUsed), 0);
   }
 
-  async deductStockFIFO(productId: number, quantity: number, tx?: TxClient): Promise<StockBatch[]> {
+  async deductStockFIFO(productId: number, storeId: string, quantity: number, tx?: TxClient): Promise<StockBatch[]> {
     const db = tx ?? prisma;
     let remainingQty = quantity;
     const usedBatches: StockBatch[] = [];
 
     const batches = await db.stockBatch.findMany({
-      where: { productId, isActive: true },
+      where: { productId, storeId, isActive: true },
       orderBy: { receivedDate: 'asc' },
     });
 
@@ -84,7 +114,7 @@ export class StockService {
     }
 
     if (remainingQty > 0) {
-      const totalAvailable = await this.getTotalQuantity(productId, tx);
+      const totalAvailable = await this.getTotalQuantity(productId, storeId, tx);
       throw new InsufficientStockError(`Product ${productId}`, totalAvailable, quantity);
     }
 
@@ -92,13 +122,13 @@ export class StockService {
     return usedBatches;
   }
 
-  async returnStock(productId: number, quantity: number, tx?: TxClient, notes?: string): Promise<StockBatch> {
+  async returnStock(productId: number, storeId: string, quantity: number, tx?: TxClient, notes?: string): Promise<StockBatch> {
     const db = tx ?? prisma;
     const product = await db.product.findUnique({ where: { id: productId } });
     if (!product) throw new NotFoundError('Product');
 
     const batch = await db.stockBatch.create({
-      data: { productId, quantity, quantityUsed: 0, unitCost: 0, notes: notes ?? 'Stock returned via void', isActive: true },
+      data: { productId, storeId, quantity, quantityUsed: 0, unitCost: 0, notes: notes ?? 'Stock returned via void', isActive: true },
     });
 
     logger.info(`Stock returned: Product ${productId}, Qty ${quantity}`);
@@ -139,10 +169,11 @@ export class StockService {
     return updated;
   }
 
-  async getLowStockProducts(businessId: string) {
+  async getLowStockProducts(businessId: string, storeId?: string) {
+    const resolvedStoreId = await this.resolveStoreId(businessId, storeId);
     const products = await prisma.product.findMany({
-      where: { businessId, isActive: true },
-      include: { stock: { where: { isActive: true } } },
+      where: { businessId, storeId: resolvedStoreId, isActive: true },
+      include: { stock: { where: { isActive: true, storeId: resolvedStoreId } } },
     });
 
     return products
@@ -160,10 +191,11 @@ export class StockService {
     return prisma.product.update({ where: { id: productId }, data: { reorderPoint } });
   }
 
-  async getExpiredStockBatches(businessId: string) {
+  async getExpiredStockBatches(businessId: string, storeId?: string) {
+    const resolvedStoreId = await this.resolveStoreId(businessId, storeId);
     return prisma.stockBatch.findMany({
-      where: { isActive: true, expiryDate: { lt: new Date() }, product: { businessId } },
-      include: { product: true },
+      where: { isActive: true, storeId: resolvedStoreId, expiryDate: { lt: new Date() }, product: { businessId } },
+      include: { product: true, store: true },
       orderBy: { expiryDate: 'asc' },
     });
   }

@@ -10,6 +10,7 @@ export interface StoredCategory {
 
 export interface StoredProduct {
   id: number;
+  storeId?: string;
   name: string;
   categoryId: string;
   barcode?: string;
@@ -33,6 +34,7 @@ export interface StoredProduct {
 export interface StoredStock {
   id: string;
   productId: number;
+  storeId?: string;
   batchNumber: string;
   quantity: number;
   quantityUsed: number;
@@ -117,6 +119,7 @@ export interface UserSession {
   email: string;
   name: string;
   role: "ADMIN" | "MANAGER" | "CASHIER";
+  storeId?: string | null;
   token: string;
   expiresAt: number;
   pinHash?: string;
@@ -179,6 +182,19 @@ export class POSDatabase extends Dexie {
       categories: "id, name, lastSynced",
       products: "id, sku, lastSynced",
       stock: "id, productId, batchNumber, receivedDate, expiryDate",
+      customers: "id, email, customerType, lastSynced",
+      transactions: "id, transactionNo, customerId, syncStatus, createdAt",
+      syncQueue: "id, type, action, createdAt, attempts",
+      userSession: "id",
+      creditLedger: "id, customerId, status, dueDate, lastSynced",
+      offlineMeta: "key, updatedAt",
+    });
+
+    // Version 5: Stock batches are scoped per store/branch
+    this.version(5).stores({
+      categories: "id, name, lastSynced",
+      products: "id, sku, lastSynced",
+      stock: "id, productId, storeId, batchNumber, receivedDate, expiryDate",
       customers: "id, email, customerType, lastSynced",
       transactions: "id, transactionNo, customerId, syncStatus, createdAt",
       syncQueue: "id, type, action, createdAt, attempts",

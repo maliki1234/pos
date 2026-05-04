@@ -14,6 +14,7 @@ export function transformApiProduct(p: any): StoredProduct {
 
   return {
     id: p.id,
+    storeId: p.storeId,
     name: p.name,
     categoryId: p.categoryId,
     barcode: p.barcode,
@@ -39,6 +40,7 @@ function buildProductPayload(data: {
   name: string;
   categoryId: string;
   barcode?: string;
+  storeId?: string;
   retailPrice: number;
   wholesalePrice: number;
   reorderPoint?: number;
@@ -46,6 +48,7 @@ function buildProductPayload(data: {
   return {
     name: data.name,
     categoryId: data.categoryId,
+    storeId: data.storeId,
     barcode: data.barcode,
     description: "",
     isActive: true,
@@ -80,7 +83,13 @@ async function getPendingOfflineProducts() {
   return products.filter(Boolean) as StoredProduct[];
 }
 
-async function withQueuedInventoryAdjustments(products: StoredProduct[]) {
+function withStoreParam(url: string, storeId?: string) {
+  if (!storeId) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}storeId=${encodeURIComponent(storeId)}`;
+}
+
+async function withQueuedInventoryAdjustments(products: StoredProduct[], storeId?: string) {
   const queued = await db.syncQueue.toArray();
   const pendingStockByProduct = new Map<number, number>();
   const pendingSalesByProduct = new Map<number, number>();
@@ -89,11 +98,13 @@ async function withQueuedInventoryAdjustments(products: StoredProduct[]) {
     if (item.type === "STOCK" && item.action === "CREATE") {
       const productId = Number(item.data?.payload?.productId);
       const quantity = Number(item.data?.payload?.quantity || 0);
-      if (Number.isFinite(productId)) {
+      const itemStoreId = item.data?.payload?.storeId;
+      if (Number.isFinite(productId) && (!storeId || itemStoreId === storeId)) {
         pendingStockByProduct.set(productId, (pendingStockByProduct.get(productId) || 0) + quantity);
       }
     }
     if (item.type === "TRANSACTION" && item.action === "CREATE") {
+      if (storeId && item.data?.storeId !== storeId) continue;
       for (const line of item.data?.items || []) {
         const productId = Number(line.productId);
         const quantity = Number(line.quantity || 0);
@@ -118,9 +129,9 @@ async function withQueuedInventoryAdjustments(products: StoredProduct[]) {
   });
 }
 
-async function searchCachedProducts(query: string) {
+async function searchCachedProducts(query: string, storeId?: string) {
   const needle = query.trim().toLowerCase();
-  const cached = await db.products.toArray();
+  const cached = (await db.products.toArray()).filter((product) => !storeId || product.storeId === storeId);
 
   if (!needle) return cached;
 
@@ -147,13 +158,14 @@ interface ProductsState {
   lastSynced: number | null;
 
   // Actions
-  loadProducts: () => Promise<void>;
-  searchProducts: (query: string) => Promise<void>;
-  getProductById: (id: string) => Promise<StoredProduct | undefined>;
+  loadProducts: (storeId?: string) => Promise<void>;
+  searchProducts: (query: string, storeId?: string) => Promise<void>;
+  getProductById: (id: string, storeId?: string) => Promise<StoredProduct | undefined>;
   createProduct: (data: {
     name: string;
     categoryId: string;
     barcode?: string;
+    storeId?: string;
     retailPrice: number;
     wholesalePrice: number;
     reorderPoint?: number;
@@ -169,7 +181,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   error: null,
   lastSynced: null,
 
-  loadProducts: async () => {
+  loadProducts: async (storeId?: string) => {
     set({ isLoading: true, error: null });
     try {
       const token = useAuthStore.getState().token;
@@ -177,7 +189,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       if (token) headers.Authorization = `Bearer ${token}`;
 
       // Try to fetch from API
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products?take=1000`, { headers });
+      const response = await fetch(withStoreParam(`${process.env.NEXT_PUBLIC_API_URL}/products?take=1000`, storeId), { headers });
 
       if (response.ok) {
         const data = await response.json();
@@ -185,7 +197,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
         const pendingOfflineProducts = await getPendingOfflineProducts();
         const transformedProducts = products.map(transformApiProduct);
-        const mergedProducts = await withQueuedInventoryAdjustments([...transformedProducts, ...pendingOfflineProducts]);
+        const mergedProducts = await withQueuedInventoryAdjustments([...transformedProducts, ...pendingOfflineProducts], storeId);
 
         // Sync IndexedDB without losing locally created products that are still queued.
         await db.products.clear();
@@ -205,7 +217,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       }
     } catch (error: any) {
       // Fall back to cached products from IndexedDB
-      const cached = await db.products.toArray();
+      const cached = (await db.products.toArray()).filter((product) => !storeId || product.storeId === storeId);
       if (cached.length > 0) {
         set({
           products: cached,
@@ -221,11 +233,11 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     }
   },
 
-  searchProducts: async (query: string) => {
+  searchProducts: async (query: string, storeId?: string) => {
     set({ isLoading: true, error: null });
     try {
       if (!query.trim()) {
-        await get().loadProducts();
+        await get().loadProducts(storeId);
         return;
       }
 
@@ -236,14 +248,14 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         if (token) headers.Authorization = `Bearer ${token}`;
 
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/products?search=${encodeURIComponent(query)}`,
+          withStoreParam(`${process.env.NEXT_PUBLIC_API_URL}/products?search=${encodeURIComponent(query)}`, storeId),
           { headers }
         );
         if (response.ok) {
           const data = await response.json();
           const products = data.data;
 
-          const transformedProducts = await withQueuedInventoryAdjustments(products.map(transformApiProduct));
+          const transformedProducts = await withQueuedInventoryAdjustments(products.map(transformApiProduct), storeId);
 
           if (transformedProducts.length > 0) {
             await Promise.all(
@@ -260,7 +272,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
       // Fall back to local cache. The products table is not indexed by name, so
       // filter in memory to keep offline search working on existing installs.
-      const results = await searchCachedProducts(query);
+      const results = await searchCachedProducts(query, storeId);
 
       set({ products: results, isLoading: false });
     } catch (error: any) {
@@ -268,7 +280,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     }
   },
 
-  getProductById: async (id: string) => {
+  getProductById: async (id: string, storeId?: string) => {
     try {
       const token = useAuthStore.getState().token;
       const headers: any = { "Content-Type": "application/json" };
@@ -276,7 +288,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
       // Try API first
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${parseInt(id)}`, { headers });
+        const response = await fetch(withStoreParam(`${process.env.NEXT_PUBLIC_API_URL}/products/${parseInt(id)}`, storeId), { headers });
         if (response.ok) {
           const data = await response.json();
           const product = data.data;
@@ -286,10 +298,13 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
           await db.products.put(transformedProduct);
           return transformedProduct;
         }
-      } catch {}
+      } catch {
+        // Fall back to the local cache below.
+      }
 
       // Fall back to local cache
-      return await db.products.get(parseInt(id));
+      const cached = await db.products.get(parseInt(id));
+      return !storeId || cached?.storeId === storeId ? cached : undefined;
     } catch (error) {
       console.error("Error fetching product:", error);
       return undefined;
@@ -322,6 +337,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       // Transform and save to IndexedDB
       const transformedProduct: StoredProduct = {
         id: newProduct.id,
+        storeId: newProduct.storeId,
         name: newProduct.name,
         categoryId: newProduct.categoryId,
         barcode: newProduct.barcode || data.barcode,
@@ -342,7 +358,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       await db.products.put(transformedProduct);
 
       // Reload products
-      await get().loadProducts();
+      await get().loadProducts(data.storeId);
       set({ isLoading: false });
     } catch (error: any) {
       if (!isOfflineFallbackError(error)) {
@@ -354,6 +370,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       const payload = buildProductPayload(data);
       const offlineProduct: StoredProduct = {
         id: localProductId,
+        storeId: data.storeId,
         name: data.name,
         categoryId: data.categoryId,
         barcode: data.barcode,
@@ -380,7 +397,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         createdAt: Date.now(),
         attempts: 0,
       });
-      await get().loadProducts();
+      await get().loadProducts(data.storeId);
       set({ isLoading: false, error: "Product saved offline - will sync when online" });
     }
   },

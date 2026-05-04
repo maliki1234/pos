@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import Joi from 'joi';
 import { prisma } from '../utils/prisma.js';
 import { ValidationError, NotFoundError } from '../utils/errors.js';
+import { stockService } from '../services/stockService.js';
 
 const bid = (req: Request) => req.user!.businessId;
 
@@ -21,6 +22,7 @@ const recipeSchema = Joi.object({
 
 const productionSchema = Joi.object({
   recipeId: Joi.string().required(),
+  storeId: Joi.string().uuid().optional(),
   quantityProduced: Joi.number().integer().min(1).required(),
   extraCosts: Joi.array().items(Joi.object({
     name: Joi.string().required(),
@@ -138,15 +140,23 @@ export const runProduction = async (req: Request, res: Response, next: NextFunct
   try {
     const { error, value } = productionSchema.validate(req.body);
     if (error) return next(new ValidationError(error.details[0].message));
+    const storeId = await stockService.resolveStoreId(bid(req), value.storeId);
 
     const recipe = await prisma.recipe.findFirst({
       where: { id: value.recipeId, businessId: bid(req), isActive: true },
       include: {
-        ingredients: { include: { product: { include: { stock: { where: { isActive: true }, orderBy: { receivedDate: 'asc' } } } } } },
+        ingredients: { include: { product: { include: { stock: { where: { isActive: true, storeId }, orderBy: { receivedDate: 'asc' } } } } } },
         product: true,
       },
     });
     if (!recipe) return next(new NotFoundError('Recipe not found'));
+    if (recipe.product.storeId !== storeId) {
+      return next(new ValidationError('Recipe finished product does not belong to this store'));
+    }
+    const wrongStoreIngredient = recipe.ingredients.find((ing) => ing.product.storeId !== storeId);
+    if (wrongStoreIngredient) {
+      return next(new ValidationError(`Ingredient "${wrongStoreIngredient.product.name}" does not belong to this store`));
+    }
 
     const batchesNeeded = value.quantityProduced / recipe.yieldQty;
 
@@ -195,7 +205,7 @@ export const runProduction = async (req: Request, res: Response, next: NextFunct
 
     // ── Add finished product stock ────────────────────────────────────────────
     const lastBatch = await prisma.stockBatch.findFirst({
-      where: { productId: recipe.productId },
+      where: { productId: recipe.productId, storeId },
       orderBy: { batchNumber: 'desc' },
     });
     const nextBatch = (lastBatch?.batchNumber ?? 0) + 1;
@@ -203,6 +213,7 @@ export const runProduction = async (req: Request, res: Response, next: NextFunct
     await prisma.stockBatch.create({
       data: {
         productId: recipe.productId,
+        storeId,
         batchNumber: nextBatch,
         quantity: value.quantityProduced,
         quantityUsed: 0,

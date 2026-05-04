@@ -3,6 +3,7 @@ export interface JwtPayload {
   businessId: string;
   email: string;
   role: 'ADMIN' | 'MANAGER' | 'CASHIER';
+  storeId?: string | null;
 }
 
 export interface PaginationQuery {
