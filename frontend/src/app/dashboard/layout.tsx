@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   Store,
   Tags,
+  User,
   UserCog,
   Users,
   WalletCards,
@@ -236,6 +237,10 @@ export default function DashboardLayout({ children }: NavProps) {
               <NavItem href="/dashboard/subscription" icon={CreditCard}>Subscription</NavItem>
             </NavGroup>
           )}
+
+          <NavGroup title="Account">
+            <NavItem href="/dashboard/profile" icon={User}>Profile</NavItem>
+          </NavGroup>
         </nav>
 
         {isAdmin && plan === "STARTER" && (

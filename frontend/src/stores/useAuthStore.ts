@@ -27,6 +27,7 @@ interface AuthState {
   logout: () => Promise<void>;
   registerBusiness: (businessName: string, email: string, password: string, name: string, country?: string, currency?: string) => Promise<void>;
   register: (email: string, password: string, name: string, role: string) => Promise<void>;
+  updateProfile: (data: { name?: string; email?: string; currentPassword?: string; newPassword?: string }) => Promise<void>;
   restoreSession: () => Promise<void>;
   setPin: (pin: string) => Promise<void>;
   verifyPin: (pin: string) => Promise<boolean>;
@@ -124,6 +125,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error(err.message || "Registration failed");
       }
       set({ isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  updateProfile: async (data) => {
+    set({ isLoading: true, error: null });
+    try {
+      const token = get().token;
+      const res = await fetch(`${API}/auth/me`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.message || "Failed to update profile");
+
+      const user: User = body.data.user;
+      const nextToken: string = body.data.token;
+      await saveSession(nextToken, user);
+      set({ user, token: nextToken, isAuthenticated: true, isLoading: false });
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
       throw error;

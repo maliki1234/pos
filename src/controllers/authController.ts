@@ -3,7 +3,7 @@ import bcryptjs from 'bcryptjs';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import Joi from 'joi';
 import config from '../config/index.js';
-import { ValidationError, ConflictError } from '../utils/errors.js';
+import { ValidationError, ConflictError, NotFoundError } from '../utils/errors.js';
 import { enforcePlanLimit } from '../utils/planLimits.js';
 import logger from '../utils/logger.js';
 import { prisma } from '../utils/prisma.js';
@@ -30,6 +30,13 @@ const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required(),
 });
+
+const updateProfileSchema = Joi.object({
+  name: Joi.string().min(2).optional(),
+  email: Joi.string().email().optional(),
+  currentPassword: Joi.string().optional(),
+  newPassword: Joi.string().min(6).optional(),
+}).or('name', 'email', 'newPassword');
 
 const makeToken = (userId: string, businessId: string, email: string, role: string) =>
   jwt.sign(
@@ -169,6 +176,97 @@ export const listStaff = async (req: Request, res: Response, next: NextFunction)
       orderBy: [{ role: 'asc' }, { name: 'asc' }],
     });
     res.json({ success: true, data: staff });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** GET /auth/me */
+export const getMe = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user?.userId || !req.user.businessId) return next(new ValidationError('Authentication required'));
+
+    const user = await prisma.user.findFirst({
+      where: { id: req.user.userId, businessId: req.user.businessId, isActive: true },
+      include: { business: { select: { id: true, name: true, currency: true } } },
+    });
+
+    if (!user) return next(new NotFoundError('User'));
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          businessId: user.businessId,
+          businessName: user.business.name,
+          currency: user.business.currency,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** PUT /auth/me */
+export const updateProfile = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user?.userId || !req.user.businessId) return next(new ValidationError('Authentication required'));
+
+    const { error, value } = updateProfileSchema.validate(req.body);
+    if (error) return next(new ValidationError(error.details[0].message));
+
+    const user = await prisma.user.findFirst({
+      where: { id: req.user.userId, businessId: req.user.businessId, isActive: true },
+      include: { business: { select: { id: true, name: true, currency: true } } },
+    });
+
+    if (!user) return next(new NotFoundError('User'));
+
+    if (value.email && value.email !== user.email) {
+      const existingUser = await prisma.user.findUnique({ where: { email: value.email } });
+      if (existingUser) return next(new ConflictError('Email already registered'));
+    }
+
+    const updates: { name?: string; email?: string; password?: string } = {};
+    if (value.name) updates.name = value.name;
+    if (value.email) updates.email = value.email;
+
+    if (value.newPassword) {
+      if (!value.currentPassword) return next(new ValidationError('Current password is required'));
+      const valid = await bcryptjs.compare(value.currentPassword, user.password);
+      if (!valid) return next(new ValidationError('Current password is incorrect'));
+      updates.password = await bcryptjs.hash(value.newPassword, 10);
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: updates,
+      include: { business: { select: { id: true, name: true, currency: true } } },
+    });
+
+    const token = makeToken(updated.id, updated.businessId, updated.email, updated.role);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        token,
+        user: {
+          id: updated.id,
+          email: updated.email,
+          name: updated.name,
+          role: updated.role,
+          businessId: updated.businessId,
+          businessName: updated.business.name,
+          currency: updated.business.currency,
+        },
+      },
+    });
   } catch (error) {
     next(error);
   }
